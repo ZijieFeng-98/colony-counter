@@ -649,6 +649,11 @@ input[type=text],input[type=number]{width:100%;padding:6px 8px;border:1px solid 
 
   const api = { otsuThreshold, adaptiveThreshold, convexHullArea, computeEccentricity };
   globalScope.ColonyCore = api;
+  // Export functions directly to global scope for app code
+  globalScope.otsuThreshold = otsuThreshold;
+  globalScope.adaptiveThreshold = adaptiveThreshold;
+  globalScope.convexHullArea = convexHullArea;
+  globalScope.computeEccentricity = computeEccentricity;
   if (typeof module !== "undefined" && module.exports) { module.exports = api; }
 })(typeof globalThis !== "undefined" ? globalThis : this);
 </script>
@@ -869,15 +874,7 @@ function bgSub(src,w,h){
   markP('sBg');
 }
 
-// Otsu threshold
-function otsuThreshold(data,w,h,mask){
-  return ColonyCore.otsuThreshold(data,w,h,mask);
-}
 
-// Local adaptive threshold
-function adaptiveThreshold(data,w,h,winSize,offset,invert){
-  return ColonyCore.adaptiveThreshold(data,w,h,winSize,offset,invert);
-}
 
 // =================================================================
 //  CONNECTED COMPONENTS + FEATURES
@@ -941,14 +938,7 @@ function labelAndFeature(mask,w,h,srcGray){
   return {labels,comps};
 }
 
-// Convex hull area from boundary pixels (Graham scan)
-function convexHullArea(borderPx,w){
-  return ColonyCore.convexHullArea(borderPx,w);
-}
 
-function computeEccentricity(sumXX,sumYY,sumXY,n){
-  return ColonyCore.computeEccentricity(sumXX,sumYY,sumXY,n);
-}
 
 // =================================================================
 //  WATERSHED SPLITTING
