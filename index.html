@@ -138,8 +138,11 @@ input[type=text],input[type=number]{width:100%;padding:6px 8px;border:1px solid 
 
 /* Legend */
 .legend{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
-.legend-item{display:flex;align-items:center;gap:3px;font-size:.68rem;color:var(--muted)}
-.legend-dot{width:10px;height:10px;border-radius:50%;border:2px solid}
+.legend-item{display:flex;align-items:center;gap:3px;font-size:.68rem;color:var(--muted);cursor:pointer;padding:2px 6px;border-radius:4px;user-select:none;transition:opacity .2s,background .2s}
+.legend-item:hover{background:rgba(255,255,255,.08)}
+.legend-item.off{opacity:.35;text-decoration:line-through}
+.legend-dot{width:10px;height:10px;border-radius:50%;border:2px solid;transition:opacity .2s}
+.legend-item.off .legend-dot{opacity:.3}
 
 /* Scrollable right col */
 .right-col{max-height:calc(100vh - 70px);overflow-y:auto}
@@ -311,11 +314,11 @@ input[type=text],input[type=number]{width:100%;padding:6px 8px;border:1px solid 
       <span class="cv" id="cmpPct">50%</span>
     </div>
     <div class="legend" id="legend" style="display:none">
-      <span class="legend-item"><span class="legend-dot" style="border-color:var(--green);background:rgba(34,197,94,.15)"></span>Accepted</span>
-      <span class="legend-item"><span class="legend-dot" style="border-color:var(--gray-slate);background:transparent;border-style:dashed"></span>Rejected</span>
-      <span class="legend-item"><span class="legend-dot" style="border-color:var(--amber);background:rgba(245,158,11,.15)"></span>Ambiguous</span>
-      <span class="legend-item"><span class="legend-dot" style="border-color:var(--magenta);background:transparent"></span>Manual</span>
-      <span class="legend-item"><span class="legend-dot" style="border-color:var(--purple);background:rgba(168,85,247,.15)"></span>Split</span>
+      <span class="legend-item" data-cat="accepted" onclick="toggleLegend(this)"><span class="legend-dot" style="border-color:var(--green);background:rgba(34,197,94,.15)"></span>Accepted</span>
+      <span class="legend-item off" data-cat="rejected" onclick="toggleLegend(this)"><span class="legend-dot" style="border-color:var(--gray-slate);background:transparent;border-style:dashed"></span>Rejected</span>
+      <span class="legend-item" data-cat="ambiguous" onclick="toggleLegend(this)"><span class="legend-dot" style="border-color:var(--amber);background:rgba(245,158,11,.15)"></span>Ambiguous</span>
+      <span class="legend-item" data-cat="manual" onclick="toggleLegend(this)"><span class="legend-dot" style="border-color:var(--magenta);background:transparent"></span>Manual</span>
+      <span class="legend-item" data-cat="split" onclick="toggleLegend(this)"><span class="legend-dot" style="border-color:var(--purple);background:rgba(168,85,247,.15)"></span>Split</span>
     </div>
     <div class="canvas-container" id="canvasContainer"><canvas id="mainCanvas"></canvas><div class="proc-overlay" id="procOverlay"><div class="proc-spinner"></div><div class="proc-text">Detecting colonies&hellip;</div></div></div>
     <div class="status-bar"><span id="stL">No image loaded</span><span id="stR"></span></div>
@@ -669,6 +672,7 @@ let manualCols=[]; // [{id,x,y,source:'manual'}]
 let removedAuto=[]; // IDs removed by user
 let prevAcceptedCount=0; // for delta card
 let curMode='add', overlayMode='original';
+let legendVis={accepted:true,rejected:false,ambiguous:true,manual:true,split:true};
 let roi=null, roiDrawing=false, roiStart=null;
 let undoStack=[], redoStack=[];
 let zoomScale=1, samples=[], nextId=0;
@@ -1252,7 +1256,7 @@ function render(){
   if(overlayMode==='original'||!grayD){X.drawImage(origImg,0,0)}
   else if(overlayMode==='gray'&&grayD){drawGrayOv(grayD)}
   else if(overlayMode==='mask'&&binMask){drawMaskOv()}
-  else if(overlayMode==='accrej'){drawAccRejOv()}
+  else if(overlayMode==='accrej'&&legendVis.rejected){drawAccRejOv()}
   else X.drawImage(origImg,0,0);
 
   // ROI
@@ -1273,7 +1277,7 @@ function render(){
   const lw=Math.max(1.5,imgW/500);
 
   // Draw rejected (dashed gray) — only in accrej mode or always faint
-  if(overlayMode==='accrej'){
+  if(overlayMode==='accrej'&&legendVis.rejected){
     X.setLineDash([6,4]);X.strokeStyle=cssVar('--gray-slate');X.lineWidth=lw;
     for(const o of allObjects){
       if(o.status!=='rejected')continue;
@@ -1284,6 +1288,7 @@ function render(){
   }
 
   // Ambiguous (dotted amber)
+  if(legendVis.ambiguous){
   X.setLineDash([2,3]);X.strokeStyle=cssVar('--amber');X.lineWidth=lw;
   for(const o of allObjects){
     if(o.status!=='ambiguous'||removedAuto.includes(o.id))continue;
@@ -1294,8 +1299,10 @@ function render(){
     X.fillText('?',o.x,o.y);
   }
   X.setLineDash([]);
+  }
 
   // Accepted auto (solid green)
+  if(legendVis.accepted){
   X.strokeStyle=cssVar('--green');X.lineWidth=lw;
   for(const o of allObjects){
     if(o.status!=='accepted'||removedAuto.includes(o.id))continue;
@@ -1305,8 +1312,10 @@ function render(){
     // center dot
     X.fillStyle='rgba(34,197,94,.5)';X.beginPath();X.arc(o.x,o.y,2,0,Math.PI*2);X.fill();
     // Split boundary marker
-    if(o.splitFrom){X.strokeStyle=cssVar('--purple');X.lineWidth=lw*.7;X.globalAlpha=.6;X.beginPath();X.arc(o.x,o.y,r+3,0,Math.PI*2);X.stroke();X.globalAlpha=1;X.strokeStyle=cssVar('--green');X.lineWidth=lw}
+    if(o.splitFrom&&legendVis.split){X.strokeStyle=cssVar('--purple');X.lineWidth=lw*.7;X.globalAlpha=.6;X.beginPath();X.arc(o.x,o.y,r+3,0,Math.PI*2);X.stroke();X.globalAlpha=1;X.strokeStyle=cssVar('--green');X.lineWidth=lw}
   }
+
+    }
 
   // User-removed auto (red slash)
   X.strokeStyle=cssVar('--red');X.lineWidth=lw;
@@ -1318,12 +1327,15 @@ function render(){
   }
 
   // Manual (magenta crosshair + ring)
+  if(legendVis.manual){
   const mr=Math.max(7,imgW/120);
   X.strokeStyle=cssVar('--magenta');X.lineWidth=lw;
   for(const c of manualCols){
     X.beginPath();X.arc(c.x,c.y,mr,0,Math.PI*2);X.stroke();
     X.beginPath();X.moveTo(c.x-mr,c.y);X.lineTo(c.x+mr,c.y);X.moveTo(c.x,c.y-mr);X.lineTo(c.x,c.y+mr);X.stroke();
   }
+
+    }
 
   // Highlight inspected
   if(inspectedId!=null){
@@ -1442,6 +1454,16 @@ function updateQCFlags(){
 // =================================================================
 //  OVERLAY / MODE / ZOOM
 // =================================================================
+// =================================================================
+//  LEGEND TOGGLES
+// =================================================================
+function toggleLegend(el){
+  const cat=el.dataset.cat;
+  legendVis[cat]=!legendVis[cat];
+  el.classList.toggle('off',!legendVis[cat]);
+  render();
+}
+
 function setOverlay(m){overlayMode=m;['tbOrig','tbGray','tbMask','tbAccRej'].forEach(id=>{$(id).classList.toggle('active',id==='tb'+{original:'Orig',gray:'Gray',mask:'Mask',accrej:'AccRej'}[m])});render()}
 function setMode(m){curMode=m;updModeUI()}
 function updModeUI(){
@@ -1674,12 +1696,14 @@ function renderCompare(){
 function _drawOverlayMarkers(){
   // Draw colony markers (accepted + ambiguous + manual) for comparison right side
   const lw=Math.max(1.5,imgW/500);
+  if(legendVis.accepted){
   X.strokeStyle=cssVar('--green');X.lineWidth=lw;X.setLineDash([]);
   for(const o of allObjects){
     if(o.status!=='accepted'||removedAuto.includes(o.id))continue;
     const r=Math.max(5,Math.sqrt(o.area/Math.PI));
     X.beginPath();X.arc(o.x,o.y,r,0,Math.PI*2);X.stroke();
   }
+  if(legendVis.ambiguous){
   X.setLineDash([2,3]);X.strokeStyle=cssVar('--amber');
   for(const o of allObjects){
     if(o.status!=='ambiguous'||removedAuto.includes(o.id))continue;
@@ -1687,6 +1711,7 @@ function _drawOverlayMarkers(){
     X.beginPath();X.arc(o.x,o.y,r,0,Math.PI*2);X.stroke();
   }
   X.setLineDash([]);
+  }
 }
 
 // =================================================================
