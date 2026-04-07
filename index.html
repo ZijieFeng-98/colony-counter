@@ -1703,6 +1703,7 @@ function _drawOverlayMarkers(){
     const r=Math.max(5,Math.sqrt(o.area/Math.PI));
     X.beginPath();X.arc(o.x,o.y,r,0,Math.PI*2);X.stroke();
   }
+}
   if(legendVis.ambiguous){
   X.setLineDash([2,3]);X.strokeStyle=cssVar('--amber');
   for(const o of allObjects){
