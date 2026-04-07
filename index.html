@@ -1,0 +1,2499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ColonyCounter v4.1.0</title>
+<style>
+:root {
+  --primary:#2563eb; --primary-hover:#1d4ed8; --primary-light:#eff6ff;
+  --green:#22c55e; --red:#ef4444; --amber:#f59e0b; --purple:#a855f7;
+  --magenta:#ec4899; --cyan:#06b6d4; --orange:#fb923c; --sky:#38bdf8;
+  --gray-slate:#94a3b8;
+  --bg:#f1f5f9; --card:#fff; --text:#1e293b; --muted:#64748b; --border:#e2e8f0;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);line-height:1.45;font-size:13px}
+header{background:var(--primary);color:#fff;padding:10px 20px;display:flex;align-items:center;justify-content:space-between}
+header h1{font-size:1.2rem;font-weight:700}
+header .sub{font-size:.7rem;opacity:.75}
+
+/* === THREE-COLUMN LAYOUT === */
+.app{max-width:1600px;margin:0 auto;padding:12px;display:grid;grid-template-columns:1fr 300px 280px;gap:12px;min-height:calc(100vh - 52px)}
+@media(max-width:1100px){.app{grid-template-columns:1fr 280px}}
+@media(max-width:800px){.app{grid-template-columns:1fr}}
+
+.panel{background:var(--card);border-radius:8px;border:1px solid var(--border);padding:12px;box-shadow:0 1px 3px rgba(0,0,0,.04);margin-bottom:10px}
+.panel h2{font-size:.82rem;font-weight:600;margin-bottom:8px;display:flex;align-items:center;gap:5px}
+.badge{font-size:.65rem;background:var(--primary-light);color:var(--primary);padding:1px 6px;border-radius:4px;font-weight:500}
+
+/* Upload */
+.upload-area{border:2px dashed var(--border);border-radius:8px;padding:24px 12px;text-align:center;cursor:pointer;transition:all .2s}
+.upload-area:hover,.upload-area.dragover{border-color:var(--primary);background:var(--primary-light)}
+.upload-area p{color:var(--muted);font-size:.8rem;margin-top:4px}
+
+/* Canvas */
+.canvas-container{position:relative;width:100%;overflow:auto;border-radius:6px;background:#111827;min-height:180px;display:none;max-height:72vh}
+.canvas-container canvas{display:block;cursor:crosshair}
+
+/* Toolbar */
+.toolbar{display:none;flex-wrap:wrap;gap:4px;margin-bottom:8px;align-items:center}
+.toolbar button{padding:4px 8px;border:1px solid var(--border);background:#fff;border-radius:5px;cursor:pointer;font-size:.72rem;transition:all .15s}
+.toolbar button:hover{background:var(--bg)}
+.toolbar button.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+.toolbar .sep{width:1px;height:20px;background:var(--border)}
+.toolbar .lbl{font-size:.7rem;color:var(--muted)}
+
+/* Controls */
+.cg{margin-bottom:10px}
+.cg label{display:block;font-size:.75rem;font-weight:500;margin-bottom:3px;color:var(--muted)}
+.rr{display:flex;align-items:center;gap:6px}
+.rr input[type=range]{flex:1;height:4px}
+.rv{min-width:28px;text-align:right;font-size:.75rem;font-weight:600}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:7px 12px;border:none;border-radius:6px;font-size:.8rem;font-weight:500;cursor:pointer;transition:all .15s;width:100%;margin-bottom:5px}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-primary:hover:not(:disabled){background:var(--primary-hover)}
+.btn-danger{background:var(--red);color:#fff}
+.btn-success{background:var(--green);color:#fff}
+.btn-outline{background:#fff;color:var(--text);border:1px solid var(--border)}
+.btn-outline:hover:not(:disabled){background:var(--bg)}
+.btn-sm{padding:4px 8px;font-size:.72rem;width:auto;margin-bottom:0}
+
+/* Mode toggle */
+.mode-toggle{display:flex;border-radius:6px;overflow:hidden;border:1px solid var(--border);margin-bottom:8px}
+.mode-toggle button{flex:1;padding:6px;border:none;background:#fff;font-size:.75rem;font-weight:500;cursor:pointer;transition:all .15s}
+.mode-toggle button.active{background:var(--primary);color:#fff}
+
+/* Checkbox */
+.cbr{display:flex;align-items:center;gap:6px;margin-bottom:5px;font-size:.78rem}
+
+/* Pipeline steps */
+.pipeline{display:flex;gap:3px;margin-bottom:8px;flex-wrap:wrap}
+.pstep{font-size:.65rem;padding:2px 6px;border-radius:10px;background:var(--bg);border:1px solid var(--border);color:var(--muted)}
+.pstep.done{background:#dcfce7;border-color:#86efac;color:#166534}
+
+/* Result box */
+.result-box{text-align:center;padding:14px;background:#f0f9ff;border-radius:8px;margin-bottom:10px}
+.result-box .count{font-size:2.4rem;font-weight:800;color:var(--primary);line-height:1}
+.result-box .count-label{font-size:.75rem;color:var(--muted);margin-top:2px}
+.result-box .breakdown{font-size:.7rem;color:var(--muted);margin-top:4px}
+
+/* Delta card */
+.delta-card{font-size:.72rem;padding:6px 10px;border-radius:6px;margin-bottom:8px;display:none}
+.delta-card.show{display:block}
+.delta-pos{background:#dcfce7;color:#166534}
+.delta-neg{background:#fee2e2;color:#991b1b}
+.delta-neutral{background:#f0f9ff;color:#1e40af}
+
+/* Sample list */
+.sample-item{display:flex;justify-content:space-between;align-items:center;padding:5px 8px;border:1px solid var(--border);border-radius:5px;margin-bottom:3px;font-size:.75rem}
+.sample-item .nm{font-weight:500;flex:1}
+.sample-item .sc{color:var(--primary);font-weight:600;margin:0 6px}
+.sample-item button{background:none;border:none;color:var(--red);cursor:pointer;font-size:.7rem;padding:1px 3px}
+
+/* === INSPECTOR === */
+.inspector-empty{text-align:center;padding:20px;color:var(--muted);font-size:.78rem}
+.insp-header{font-weight:600;font-size:.85rem;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.insp-status{font-size:.65rem;padding:2px 8px;border-radius:10px;color:#fff;font-weight:600}
+.insp-status.accepted{background:var(--green)}
+.insp-status.rejected{background:var(--gray-slate)}
+.insp-status.ambiguous{background:var(--amber)}
+.insp-status.manual{background:var(--magenta)}
+.insp-table{width:100%;font-size:.75rem;border-collapse:collapse}
+.insp-table td{padding:3px 0;border-bottom:1px solid var(--border)}
+.insp-table td:first-child{color:var(--muted);width:45%}
+.insp-table td:last-child{font-weight:500;text-align:right}
+.reason-list{margin-top:8px}
+.reason-tag{display:inline-block;font-size:.65rem;padding:2px 6px;border-radius:4px;background:#fef3c7;color:#92400e;margin:2px;font-family:monospace}
+
+/* Threshold method selector */
+select{width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:5px;font-size:.8rem;margin-bottom:6px;background:#fff}
+
+/* Toast */
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(70px);background:#1e293b;color:#fff;padding:8px 18px;border-radius:7px;font-size:.82rem;opacity:0;transition:all .3s;z-index:100;white-space:nowrap}
+.toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+
+/* Status bar */
+.status-bar{font-size:.7rem;color:var(--muted);padding:3px 0;display:flex;justify-content:space-between}
+
+/* Citation */
+.citation{background:var(--bg);border-radius:5px;padding:8px;font-size:.65rem;color:var(--muted);line-height:1.5;border:1px solid var(--border)}
+.citation strong{color:var(--text)}
+
+/* Shortcuts */
+.shortcuts{font-size:.68rem;color:var(--muted);line-height:1.8}
+.shortcuts kbd{background:var(--bg);border:1px solid var(--border);border-radius:3px;padding:0 4px;font-family:inherit;font-size:.65rem}
+
+/* Input */
+input[type=text],input[type=number]{width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:5px;font-size:.82rem;margin-bottom:5px}
+
+/* QC flags */
+.qc-flags{margin-top:6px}
+.qc-flag{font-size:.7rem;padding:3px 8px;border-radius:4px;margin-bottom:3px;display:flex;align-items:center;gap:4px}
+.qc-flag.warn{background:#fef3c7;color:#92400e}
+.qc-flag.ok{background:#dcfce7;color:#166534}
+
+/* Legend */
+.legend{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.legend-item{display:flex;align-items:center;gap:3px;font-size:.68rem;color:var(--muted)}
+.legend-dot{width:10px;height:10px;border-radius:50%;border:2px solid}
+
+/* Scrollable right col */
+.right-col{max-height:calc(100vh - 70px);overflow-y:auto}
+.center-col{max-height:calc(100vh - 70px);overflow-y:auto}
+
+/* === TAB SYSTEM === */
+.tab-bar{display:flex;border-bottom:2px solid var(--border);margin-bottom:10px;gap:2px}
+.tab-btn{padding:7px 14px;border:none;background:none;font-size:.8rem;font-weight:500;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .15s}
+.tab-btn.active{color:var(--primary);border-bottom-color:var(--primary);font-weight:600}
+.tab-btn:hover:not(.active){color:var(--text);background:var(--bg);border-radius:4px 4px 0 0}
+.tab-panel{display:none}.tab-panel.active{display:block}
+
+/* === BATCH MODE === */
+.batch-upload{border:2px dashed var(--border);border-radius:8px;padding:18px 12px;text-align:center;cursor:pointer;transition:all .2s;margin-bottom:8px}
+.batch-upload:hover,.batch-upload.dragover{border-color:var(--primary);background:var(--primary-light)}
+.batch-upload p{color:var(--muted);font-size:.78rem;margin-top:3px}
+.batch-file-list{max-height:160px;overflow-y:auto;margin-bottom:8px}
+.batch-file{display:flex;align-items:center;gap:6px;padding:4px 8px;border:1px solid var(--border);border-radius:5px;margin-bottom:3px;font-size:.73rem}
+.batch-file .bf-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.batch-file .bf-status{font-size:.65rem;padding:1px 5px;border-radius:8px;font-weight:500}
+.bf-pending{background:#f0f9ff;color:#1e40af}
+.bf-done{background:#dcfce7;color:#166534}
+.bf-error{background:#fee2e2;color:#991b1b}
+.bf-remove{background:none;border:none;color:var(--red);cursor:pointer;font-size:.7rem;padding:1px 3px}
+
+/* Batch progress */
+.batch-progress{margin-bottom:10px;display:none}
+.batch-progress.active{display:block}
+.bp-bar-bg{background:var(--bg);border-radius:4px;height:6px;overflow:hidden;margin-bottom:4px}
+.bp-bar{background:var(--primary);height:100%;border-radius:4px;transition:width .3s}
+.bp-label{font-size:.7rem;color:var(--muted);text-align:center}
+
+/* Batch results table */
+.batch-results{margin-top:8px}
+.batch-results table{width:100%;border-collapse:collapse;font-size:.72rem}
+.batch-results th{background:var(--bg);padding:4px 6px;text-align:left;font-weight:600;border-bottom:1px solid var(--border)}
+.batch-results td{padding:4px 6px;border-bottom:1px solid var(--border)}
+.batch-results tr:hover{background:var(--primary-light)}
+.batch-results .br-count{font-weight:600;color:var(--primary)}
+
+/* Well grid preview */
+.well-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:8px 0}
+.well-card{border:1px solid var(--border);border-radius:6px;padding:6px;text-align:center;font-size:.72rem;background:var(--card)}
+.well-card .wc-label{font-weight:600;color:var(--text);margin-bottom:2px}
+.well-card .wc-count{font-size:1.1rem;font-weight:700;color:var(--primary)}
+.well-card .wc-sub{color:var(--muted);font-size:.65rem}
+.well-card.wc-empty{background:var(--bg);color:var(--muted)}
+
+/* Plate mode selector */
+.plate-mode{display:flex;border-radius:6px;overflow:hidden;border:1px solid var(--border);margin-bottom:8px}
+.plate-mode button{flex:1;padding:6px;border:none;background:#fff;font-size:.75rem;font-weight:500;cursor:pointer;transition:all .15s}
+.plate-mode button.active{background:var(--primary);color:#fff}
+
+/* === BEFORE/AFTER COMPARISON === */
+.compare-bar{display:none;align-items:center;gap:6px;margin-bottom:6px;font-size:.72rem;color:var(--muted)}
+.compare-bar.active{display:flex}
+.compare-bar select{padding:2px 6px;border:1px solid var(--border);border-radius:4px;font-size:.72rem;background:#fff}
+.compare-bar input[type=range]{flex:1;height:4px}
+.compare-bar .cv{min-width:24px;text-align:center;font-weight:600;font-size:.7rem}
+
+/* === OBJECT LIST === */
+.obj-list-panel{max-height:260px;overflow-y:auto}
+.obj-list-group{margin-bottom:6px}
+.obj-list-group summary{font-size:.75rem;font-weight:600;cursor:pointer;padding:3px 0;color:var(--text)}
+.obj-list-group summary .olg-count{color:var(--muted);font-weight:400}
+.obj-row{display:flex;align-items:center;gap:4px;padding:2px 6px;font-size:.7rem;cursor:pointer;border-radius:3px;transition:background .1s}
+.obj-row:hover{background:var(--primary-light)}
+.obj-row.selected{background:var(--primary-light);font-weight:600}
+.obj-row .or-id{color:var(--muted);min-width:28px}
+.obj-row .or-area{min-width:38px;text-align:right;color:var(--muted)}
+.obj-row .or-conf{min-width:30px;text-align:right}
+.or-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+
+/* === THRESHOLD STABILITY CHART === */
+.stab-chart{height:50px;background:var(--bg);border-radius:4px;margin:6px 0;position:relative;overflow:hidden}
+.stab-chart canvas{width:100%;height:100%}
+.stab-label{font-size:.65rem;color:var(--muted);text-align:center;margin-top:2px}
+
+/* Processing overlay (Fix #6) */
+.proc-overlay{display:none;position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.55);z-index:50;align-items:center;justify-content:center;border-radius:6px;flex-direction:column;gap:10px}
+.proc-overlay.active{display:flex}
+.proc-spinner{width:36px;height:36px;border:3px solid rgba(255,255,255,.25);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.proc-text{color:#fff;font-size:.82rem;font-weight:500}
+</style>
+</head>
+<body>
+
+<header>
+  <div><h1>ColonyCounter</h1><span class="sub">v4.1.0 &mdash; Batch &amp; 6-Well Plate Colony Formation Assay Analysis</span></div>
+  <div style="font-size:.7rem;opacity:.8"><span id="headerFile"></span></div>
+</header>
+
+<div class="app">
+<!-- ======== COL 1: IMAGE VIEWER ======== -->
+<div>
+  <div class="panel">
+    <!-- Tab bar for single vs batch mode -->
+    <div class="tab-bar">
+      <button class="tab-btn active" id="tabSingle" onclick="switchTab('single')">Single Image</button>
+      <button class="tab-btn" id="tabBatch" onclick="switchTab('batch')">Batch / 6-Well Plate</button>
+    </div>
+
+    <!-- SINGLE IMAGE upload (existing) -->
+    <div class="tab-panel active" id="panelSingle">
+    <div class="upload-area" id="uploadArea">
+      <div style="font-size:1.6rem">&#128247;</div>
+      <p><strong>Click or drag &amp; drop</strong> plate image (JPG, PNG, TIFF)</p>
+      <input type="file" id="fileInput" accept="image/*" style="display:none">
+    </div>
+    </div>
+
+    <!-- BATCH upload panel -->
+    <div class="tab-panel" id="panelBatch">
+      <div class="plate-mode">
+        <button class="active" id="bmIndiv" onclick="setBatchMode('individual')">Individual Wells</button>
+        <button id="bmPlate" onclick="setBatchMode('plate')">6-Well Plates</button>
+      </div>
+      <div class="batch-upload" id="batchUploadArea">
+        <div style="font-size:1.4rem">&#128194;</div>
+        <p><strong>Click or drag &amp; drop</strong> multiple images</p>
+        <input type="file" id="batchFileInput" accept="image/*" multiple style="display:none">
+      </div>
+      <div class="batch-file-list" id="batchFileList"></div>
+      <div id="wellDetectGroup" style="display:none">
+        <button class="btn btn-outline" id="detectWellsBtn" disabled onclick="runWellDetection()">&#9711; Detect Wells in First Image</button>
+        <div class="well-grid" id="wellGrid" style="display:none"></div>
+      </div>
+      <button class="btn btn-primary" id="batchRunBtn" disabled onclick="startBatchProcessing()">&#9654; Process All Images</button>
+      <div class="batch-progress" id="batchProgress">
+        <div class="bp-bar-bg"><div class="bp-bar" id="bpBar" style="width:0%"></div></div>
+        <div class="bp-label" id="bpLabel">Ready</div>
+      </div>
+      <div class="batch-results" id="batchResults"></div>
+      <div style="margin-top:8px">
+        <button class="btn btn-success" id="batchExpSumBtn" disabled onclick="exportBatchSummaryCSV()">&#128190; Batch Summary CSV</button>
+        <button class="btn btn-outline" id="batchExpDetBtn" disabled onclick="exportBatchDetailCSV()">&#128190; Batch Details CSV</button>
+      </div>
+    </div>
+    <div class="toolbar" id="toolbar">
+      <span class="lbl">View:</span>
+      <button id="tbOrig" class="active" onclick="setOverlay('original')">Original</button>
+      <button id="tbGray" onclick="setOverlay('gray')">Gray</button>
+      <button id="tbMask" onclick="setOverlay('mask')">Mask</button>
+      <button id="tbAccRej" onclick="setOverlay('accrej')">Acc/Rej</button>
+      <div class="sep"></div>
+      <span class="lbl">Edit:</span>
+      <button id="tbROI" onclick="startROI()">&#9711; ROI</button>
+      <button id="tbAdd" class="active" onclick="setMode('add')">+ Add</button>
+      <button id="tbRem" onclick="setMode('remove')">- Remove</button>
+      <div class="sep"></div>
+      <button onclick="undo()">&#8630;</button>
+      <button onclick="redo()">&#8631;</button>
+      <div class="sep"></div>
+      <button onclick="zoomIn()">+</button>
+      <button onclick="zoomOut()">&minus;</button>
+      <button onclick="zoomFit()">Fit</button>
+      <span class="lbl" id="zoomLbl">100%</span>
+    </div>
+    <div class="compare-bar" id="compareBar">
+      <span>Compare:</span>
+      <select id="cmpMode" onchange="updateCompare()">
+        <option value="off">Off</option>
+        <option value="orig_mask">Original &harr; Mask</option>
+        <option value="mask_accrej">Mask &harr; Acc/Rej</option>
+        <option value="orig_accrej">Original &harr; Overlay</option>
+      </select>
+      <input type="range" id="cmpSlider" min="0" max="100" value="50" oninput="renderCompare()">
+      <span class="cv" id="cmpPct">50%</span>
+    </div>
+    <div class="legend" id="legend" style="display:none">
+      <span class="legend-item"><span class="legend-dot" style="border-color:var(--green);background:rgba(34,197,94,.15)"></span>Accepted</span>
+      <span class="legend-item"><span class="legend-dot" style="border-color:var(--gray-slate);background:transparent;border-style:dashed"></span>Rejected</span>
+      <span class="legend-item"><span class="legend-dot" style="border-color:var(--amber);background:rgba(245,158,11,.15)"></span>Ambiguous</span>
+      <span class="legend-item"><span class="legend-dot" style="border-color:var(--magenta);background:transparent"></span>Manual</span>
+      <span class="legend-item"><span class="legend-dot" style="border-color:var(--purple);background:rgba(168,85,247,.15)"></span>Split</span>
+    </div>
+    <div class="canvas-container" id="canvasContainer"><canvas id="mainCanvas"></canvas><div class="proc-overlay" id="procOverlay"><div class="proc-spinner"></div><div class="proc-text">Detecting colonies&hellip;</div></div></div>
+    <div class="status-bar"><span id="stL">No image loaded</span><span id="stR"></span></div>
+  </div>
+</div>
+
+<!-- ======== COL 2: CONTROLS ======== -->
+<div class="center-col">
+  <!-- ROI -->
+  <div class="panel">
+    <h2>&#9312; Region of Interest <span class="badge">ROI</span></h2>
+    <p style="font-size:.72rem;color:var(--muted);margin-bottom:6px">Draw circular ROI. Only area inside is analyzed.</p>
+    <button class="btn btn-outline btn-sm" id="roiBtn" disabled onclick="startROI()">&#9711; Draw ROI</button>
+    <button class="btn btn-outline btn-sm" id="clrROI" disabled onclick="clearROI()">Clear</button>
+    <div class="cg" style="margin-top:6px">
+      <label>Edge Exclusion Margin (%)</label>
+      <div class="rr"><input type="range" id="edgeMargin" min="0" max="15" value="3" step="1"><span class="rv" id="edgeMarginV">3</span></div>
+    </div>
+    <div class="cbr"><input type="checkbox" id="useROI" checked><label for="useROI">Use ROI for detection</label></div>
+  </div>
+
+  <!-- Detection -->
+  <div class="panel">
+    <h2>&#9313; Detection <span class="badge">Pipeline</span></h2>
+    <div class="pipeline" id="pipeSteps">
+      <span class="pstep" id="sGray">Gray</span>
+      <span class="pstep" id="sBlur">Blur</span>
+      <span class="pstep" id="sBg">BG</span>
+      <span class="pstep" id="sThresh">Thresh</span>
+      <span class="pstep" id="sClean">Clean</span>
+      <span class="pstep" id="sLabel">Label</span>
+      <span class="pstep" id="sFilter">Filter</span>
+      <span class="pstep" id="sSplit">Split</span>
+    </div>
+
+    <div class="cbr"><input type="checkbox" id="invertChk" checked><label for="invertChk">Dark colonies on light background</label></div>
+
+    <div class="cg">
+      <label>Gaussian Blur Radius</label>
+      <div class="rr"><input type="range" id="blurR" min="0" max="10" value="2"><span class="rv" id="blurRV">2</span></div>
+    </div>
+
+    <div class="cbr"><input type="checkbox" id="bgSubChk" checked><label for="bgSubChk">Background subtraction</label></div>
+
+    <div class="cg">
+      <label>Threshold Method</label>
+      <select id="threshMethod">
+        <option value="manual">Manual</option>
+        <option value="otsu" selected>Otsu (auto)</option>
+        <option value="adaptive">Local Adaptive (Mean)</option>
+        <option value="niblack">Niblack (local mean+std)</option>
+        <option value="sauvola">Sauvola (improved Niblack)</option>
+      </select>
+    </div>
+
+    <div class="cg" id="threshManualGroup">
+      <label>Threshold Value</label>
+      <div class="rr"><input type="range" id="threshVal" min="1" max="255" value="128"><span class="rv" id="threshValV">128</span></div>
+    </div>
+
+    <div class="cg" id="adaptiveGroup" style="display:none">
+      <label>Adaptive Window Size</label>
+      <div class="rr"><input type="range" id="adaptWin" min="11" max="201" value="51" step="2"><span class="rv" id="adaptWinV">51</span></div>
+      <label style="margin-top:4px" id="adaptOffLabel">Adaptive Offset</label>
+      <div class="rr"><input type="range" id="adaptOff" min="-30" max="30" value="-10"><span class="rv" id="adaptOffV">-10</span></div>
+      <div id="niblackKGroup" style="display:none">
+        <label style="margin-top:4px">k (noise sensitivity)</label>
+        <div class="rr"><input type="range" id="niblackK" min="-100" max="100" value="-20" step="5"><span class="rv" id="niblackKV">-0.20</span></div>
+        <div id="sauvolaRGroup" style="display:none">
+          <label style="margin-top:4px">R (dynamic range)</label>
+          <div class="rr"><input type="range" id="sauvolaR" min="32" max="255" value="128"><span class="rv" id="sauvolaRV">128</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="stab-chart" id="stabChart" style="display:none"><canvas id="stabCanvas"></canvas></div>
+    <div class="stab-label" id="stabLabel" style="display:none"></div>
+
+    <div class="cg">
+      <label>Min Colony Size (px)</label>
+      <div class="rr"><input type="range" id="minSz" min="1" max="500" value="20"><span class="rv" id="minSzV">20</span></div>
+    </div>
+    <div class="cg">
+      <label>Max Colony Size (px)</label>
+      <div class="rr"><input type="range" id="maxSz" min="10" max="10000" value="3000"><span class="rv" id="maxSzV">3000</span></div>
+    </div>
+    <div class="cg">
+      <label>Min Circularity (4&pi;A/P&sup2;)</label>
+      <div class="rr"><input type="range" id="minCirc" min="0" max="95" value="15" step="5"><span class="rv" id="minCircV">0.15</span></div>
+    </div>
+    <div class="cg">
+      <label>Min Solidity (A/ConvexA)</label>
+      <div class="rr"><input type="range" id="minSol" min="0" max="95" value="50" step="5"><span class="rv" id="minSolV">0.50</span></div>
+    </div>
+    <div class="cg">
+      <label>Max Eccentricity (0=circle, 1=line)</label>
+      <div class="rr"><input type="range" id="maxEcc" min="50" max="100" value="95" step="1"><span class="rv" id="maxEccV">0.95</span></div>
+    </div>
+    <div class="cbr"><input type="checkbox" id="borderRej" checked><label for="borderRej">Reject border-touching objects</label></div>
+
+    <div class="cbr"><input type="checkbox" id="wsChk" checked><label for="wsChk">Split touching colonies (watershed)</label></div>
+    <div id="wsGroup">
+      <div class="cg">
+        <label>Seed Sensitivity (h-maxima suppression)</label>
+        <div class="rr"><input type="range" id="wsH" min="5" max="50" value="15" step="1"><span class="rv" id="wsHV">0.15</span></div>
+      </div>
+      <div class="cg">
+        <label>Min Peak Distance (fraction of est. radius)</label>
+        <div class="rr"><input type="range" id="wsPD" min="20" max="100" value="60" step="5"><span class="rv" id="wsPDV">0.60</span></div>
+      </div>
+    </div>
+
+    <button class="btn btn-primary" id="detectBtn" disabled onclick="runDetection()">&#9654; Auto-Detect</button>
+  </div>
+
+  <!-- Manual -->
+  <div class="panel">
+    <h2>&#9314; Manual Correction</h2>
+    <div class="mode-toggle">
+      <button id="mAdd" class="active" onclick="setMode('add')">+ Add</button>
+      <button id="mRem" onclick="setMode('remove')">- Remove</button>
+    </div>
+    <p style="font-size:.7rem;color:var(--muted);margin-bottom:6px"><b>Add:</b> click to mark. <b>Remove:</b> click near a marker.</p>
+    <button class="btn btn-outline btn-sm" onclick="undo()">&#8630; Undo</button>
+    <button class="btn btn-outline btn-sm" onclick="redo()">&#8631; Redo</button>
+    <button class="btn btn-danger btn-sm" id="clrManBtn" disabled onclick="clearManual()">Clear Manual</button>
+    <button class="btn btn-outline btn-sm" id="clrAllBtn" disabled onclick="clearAll()">Clear All</button>
+  </div>
+
+  <!-- Presets -->
+  <div class="panel">
+    <h2>Presets</h2>
+    <button class="btn btn-outline btn-sm" onclick="exportPreset()">Export Settings (JSON)</button>
+    <button class="btn btn-outline btn-sm" onclick="document.getElementById('presetFileIn').click()">Import Settings</button>
+    <input type="file" id="presetFileIn" accept=".json" style="display:none">
+  </div>
+
+  <!-- Shortcuts -->
+  <div class="panel">
+    <h2>Keyboard Shortcuts</h2>
+    <div class="shortcuts">
+      <kbd>A</kbd> Add <kbd>R</kbd> Remove <kbd>D</kbd> Detect<br>
+      <kbd>1</kbd>-<kbd>4</kbd> Overlays <kbd>Ctrl+Z</kbd> Undo <kbd>Ctrl+Y</kbd> Redo<br>
+      <kbd>F</kbd> Fit <kbd>+</kbd>/<kbd>-</kbd> Zoom <kbd>S</kbd> Save sample
+    </div>
+  </div>
+</div>
+
+<!-- ======== COL 3: INSPECTOR + RESULTS ======== -->
+<div class="right-col">
+  <!-- Inspector -->
+  <div class="panel" id="inspPanel">
+    <h2>Inspector</h2>
+    <div class="inspector-empty" id="inspEmpty">Click any colony to inspect its properties and acceptance reason.</div>
+    <div id="inspContent" style="display:none">
+      <div class="insp-header"><span id="inspTitle">Object #0</span><span class="insp-status" id="inspStatus">Accepted</span></div>
+      <table class="insp-table">
+        <tr><td>Centroid (x, y)</td><td id="inspXY">-</td></tr>
+        <tr><td>Area (px)</td><td id="inspArea">-</td></tr>
+        <tr><td>Perimeter (px)</td><td id="inspPerim">-</td></tr>
+        <tr><td>Circularity</td><td id="inspCirc">-</td></tr>
+        <tr><td>Solidity</td><td id="inspSol">-</td></tr>
+        <tr><td>Eccentricity</td><td id="inspEcc">-</td></tr>
+        <tr><td>Mean Intensity</td><td id="inspInt">-</td></tr>
+        <tr><td>Border Distance (px)</td><td id="inspBDist">-</td></tr>
+        <tr><td>Confidence</td><td id="inspConf">-</td></tr>
+      </table>
+      <div class="reason-list" id="inspReasons"></div>
+    </div>
+  </div>
+
+  <!-- Object List -->
+  <div class="panel" id="objListPanel" style="display:none">
+    <h2>Object List <span class="badge" id="objListBadge">0</span></h2>
+    <div class="obj-list-panel" id="objList"></div>
+  </div>
+
+  <!-- Results -->
+  <div class="panel">
+    <h2>&#9315; Results</h2>
+    <div class="delta-card" id="deltaCard"></div>
+    <div class="result-box">
+      <div class="count" id="totalCount">0</div>
+      <div class="count-label">Accepted Colonies</div>
+      <div class="breakdown" id="breakdown">Auto: 0 | Manual: +0 | Removed: -0 | Rejected: 0</div>
+    </div>
+
+    <!-- QC Flags -->
+    <div class="qc-flags" id="qcFlags"></div>
+
+    <div class="cg">
+      <label>Sample / Condition Name</label>
+      <input type="text" id="sampleName" placeholder="e.g., Control, 2Gy, 4Gy...">
+    </div>
+    <div class="cg">
+      <label>Pixel Calibration (optional, &micro;m/px)</label>
+      <input type="number" id="calibration" placeholder="e.g., 10.5" step="any" min="0">
+    </div>
+    <button class="btn btn-outline" id="saveSmpBtn" disabled onclick="saveSample()">Save to Sample List</button>
+    <div id="sampleList" style="margin-top:6px"></div>
+
+    <button class="btn btn-success" id="expSumBtn" disabled onclick="exportSummaryCSV()">&#128190; Summary CSV</button>
+    <button class="btn btn-outline" id="expDetBtn" disabled onclick="exportDetailCSV()">&#128190; Colony Details CSV</button>
+    <button class="btn btn-outline" id="expJsonBtn" disabled onclick="exportSessionJSON()">&#128190; Session JSON (audit)</button>
+  </div>
+
+  <!-- Citation -->
+  <div class="panel">
+    <div class="citation">
+      <strong>How to cite:</strong><br>
+      ColonyCounter v4.1.0 &mdash; An open-source browser-based colony formation assay tool with explainable automated detection, adaptive thresholding, shape-based filtering, watershed splitting, 6-well plate auto-detection, batch processing, and manual curation.<br><br>
+      <em>"Colonies were counted using ColonyCounter v4.1.0, featuring Otsu/adaptive thresholding, background subtraction, circularity/solidity/eccentricity filtering, distance-transform watershed splitting, automated 6-well plate detection via circle Hough transform, batch processing, and manual curation. All detection parameters and per-colony metrics are reported in exported data."</em>
+    </div>
+  </div>
+</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="./src/core/algorithms.js"></script>
+<script>
+// =================================================================
+//  STATE
+// =================================================================
+let origImg=null, origFn='', imgW=0, imgH=0, origPx=null;
+let grayD=null, blurD=null, bgSubD=null, binMask=null;
+// All candidate objects (accepted + rejected + ambiguous)
+let allObjects=[]; // [{id,x,y,area,perimeter,circularity,solidity,eccentricity,meanIntensity,borderDist,status,reasons,confidence,splitFrom,source:'auto'}]
+let manualCols=[]; // [{id,x,y,source:'manual'}]
+let removedAuto=[]; // IDs removed by user
+let prevAcceptedCount=0; // for delta card
+let curMode='add', overlayMode='original';
+let roi=null, roiDrawing=false, roiStart=null;
+let undoStack=[], redoStack=[];
+let zoomScale=1, samples=[], nextId=0;
+let inspectedId=null;
+let prevObjects=[]; // for delta highlight: previous accepted set
+let deltaNewIds=new Set(), deltaLostIds=new Set(); // IDs that changed status
+let deltaFadeStart=0; // timestamp when delta glow began
+
+// Batch / Plate state
+let activeTab='single'; // 'single' | 'batch'
+let batchImageMode='individual'; // 'individual' | 'plate'
+let batchFiles=[]; // [{file, img:HTMLImageElement, w, h, result:null|{wells:[...]}}]
+let batchWellTemplate=null; // [{cx,cy,r,label}] from first plate image
+let batchProcessing=false;
+
+const C=document.getElementById('mainCanvas'), X=C.getContext('2d',{willReadFrequently:true});
+// Fix #9: Cache CSS custom properties at startup to avoid getComputedStyle per render frame
+const _cssCache={};
+(function(){const cs=getComputedStyle(document.documentElement);['--green','--red','--amber','--purple','--magenta','--cyan','--orange','--sky','--gray-slate'].forEach(v=>{_cssCache[v]=cs.getPropertyValue(v).trim()})})();
+
+// =================================================================
+//  UPLOAD
+// =================================================================
+const uploadArea=document.getElementById('uploadArea'), fileIn=document.getElementById('fileInput');
+uploadArea.addEventListener('click',()=>fileIn.click());
+uploadArea.addEventListener('dragover',e=>{e.preventDefault();uploadArea.classList.add('dragover')});
+uploadArea.addEventListener('dragleave',()=>uploadArea.classList.remove('dragover'));
+uploadArea.addEventListener('drop',e=>{e.preventDefault();uploadArea.classList.remove('dragover');if(e.dataTransfer.files.length)loadImage(e.dataTransfer.files[0])});
+fileIn.addEventListener('change',e=>{if(e.target.files.length)loadImage(e.target.files[0])});
+
+function loadImage(f){
+  origFn=f.name;
+  const r=new FileReader();
+  r.onload=e=>{
+    const img=new Image();
+    img.onload=()=>{
+      origImg=img;imgW=img.width;imgH=img.height;
+      C.width=imgW;C.height=imgH;X.drawImage(img,0,0);
+      origPx=X.getImageData(0,0,imgW,imgH).data.slice();
+      allObjects=[];manualCols=[];removedAuto=[];undoStack=[];redoStack=[];
+      roi=null;grayD=null;blurD=null;binMask=null;prevAcceptedCount=0;inspectedId=null;
+      zoomFit();
+      document.getElementById('canvasContainer').style.display='block';
+      document.getElementById('toolbar').style.display='flex';
+      document.getElementById('legend').style.display='flex';
+      document.getElementById('detectBtn').disabled=false;
+      document.getElementById('roiBtn').disabled=false;
+      document.getElementById('clrAllBtn').disabled=false;
+      document.getElementById('headerFile').textContent=f.name;
+      uploadArea.innerHTML='<div style="font-size:1.3rem">&#9989;</div><p><b>'+esc(f.name)+'</b> ('+imgW+'&times;'+imgH+')<br>Click to change</p>';
+      render();updateCounts();hideInspector();
+      toast('Image loaded — draw ROI (optional), then detect');
+    };
+    img.src=e.target.result;
+  };
+  r.readAsDataURL(f);
+}
+
+// =================================================================
+//  ROI
+// =================================================================
+function startROI(){curMode='roi';roiDrawing=false;roiStart=null;updModeUI();toast('Click-drag on image to draw circular ROI')}
+function clearROI(){roi=null;document.getElementById('clrROI').disabled=true;render();toast('ROI cleared')}
+
+C.addEventListener('mousedown',e=>{if(curMode==='roi'){const p=cCoords(e);roiStart=p;roiDrawing=true}});
+C.addEventListener('mousemove',e=>{
+  if(curMode==='roi'&&roiDrawing&&roiStart){const p=cCoords(e);roi={cx:(roiStart.x+p.x)/2,cy:(roiStart.y+p.y)/2,r:Math.hypot(p.x-roiStart.x,p.y-roiStart.y)/2};render()}
+  if(origImg){const p=cCoords(e);document.getElementById('stR').textContent='x:'+p.x+' y:'+p.y}
+});
+C.addEventListener('mouseup',e=>{
+  if(curMode==='roi'&&roiDrawing){roiDrawing=false;if(roi&&roi.r>5){document.getElementById('clrROI').disabled=false;setMode('add');toast('ROI set — r='+Math.round(roi.r)+'px')}else roi=null}
+});
+
+// =================================================================
+//  CLICK: ADD / REMOVE / INSPECT
+// =================================================================
+C.addEventListener('click',e=>{
+  if(!origImg||curMode==='roi')return;
+  const p=cCoords(e);
+  const useR=roi&&document.getElementById('useROI').checked;
+  const em=parseInt(document.getElementById('edgeMargin').value)/100;
+  if(useR){const effR=roi.r*(1-em);if(Math.hypot(p.x-roi.cx,p.y-roi.cy)>effR)return}
+
+  if(curMode==='add'){
+    const c={x:p.x,y:p.y,id:nextId++,source:'manual'};
+    manualCols.push(c);pushUndo({act:'addM',col:c});
+  } else if(curMode==='remove'){
+    const scX=imgW/C.getBoundingClientRect().width;
+    const rad=Math.max(15,20*scX);
+    let bd=rad,bt=null,bi=-1;
+    // Check accepted auto objects
+    const accepted=allObjects.filter(o=>o.status==='accepted'&&!removedAuto.includes(o.id));
+    for(let i=0;i<accepted.length;i++){const d=Math.hypot(accepted[i].x-p.x,accepted[i].y-p.y);if(d<bd){bd=d;bt='auto';bi=accepted[i].id}}
+    for(let i=0;i<manualCols.length;i++){const d=Math.hypot(manualCols[i].x-p.x,manualCols[i].y-p.y);if(d<bd){bd=d;bt='manual';bi=i}}
+    if(bt==='auto'){removedAuto.push(bi);pushUndo({act:'remA',id:bi})}
+    else if(bt==='manual'){const rm=manualCols.splice(bi,1)[0];pushUndo({act:'remM',col:rm,idx:bi})}
+  }
+  // Inspect: find nearest object to click
+  inspectAt(p.x,p.y);
+  render();updateCounts();
+});
+
+function inspectAt(px,py){
+  let bd=Infinity,best=null;
+  for(const o of allObjects){const d=Math.hypot(o.x-px,o.y-py);if(d<bd){bd=d;best=o}}
+  for(const o of manualCols){const d=Math.hypot(o.x-px,o.y-py);if(d<bd){bd=d;best={...o,status:'manual',area:0,perimeter:0,circularity:0,solidity:0,eccentricity:0,meanIntensity:0,borderDist:0,confidence:1,reasons:[]}}}
+  if(best&&bd<Math.max(40,imgW/20)){showInspector(best)}
+}
+
+// =================================================================
+//  INSPECTOR
+// =================================================================
+function showInspector(o){
+  inspectedId=o.id;
+  document.getElementById('inspEmpty').style.display='none';
+  document.getElementById('inspContent').style.display='block';
+  const isRem=removedAuto.includes(o.id);
+  let st=o.source==='manual'?'manual':isRem?'rejected':o.status;
+  document.getElementById('inspTitle').textContent='Object #'+o.id+(o.splitFrom!=null?' (split)':'');
+  const stEl=document.getElementById('inspStatus');
+  stEl.textContent=st.charAt(0).toUpperCase()+st.slice(1);
+  stEl.className='insp-status '+st;
+  document.getElementById('inspXY').textContent=o.x+', '+o.y;
+  document.getElementById('inspArea').textContent=o.area||'-';
+  document.getElementById('inspPerim').textContent=o.perimeter||'-';
+  document.getElementById('inspCirc').textContent=o.circularity?o.circularity.toFixed(3):'-';
+  document.getElementById('inspSol').textContent=o.solidity?o.solidity.toFixed(3):'-';
+  document.getElementById('inspEcc').textContent=o.eccentricity?o.eccentricity.toFixed(3):'-';
+  document.getElementById('inspInt').textContent=o.meanIntensity?o.meanIntensity.toFixed(1):'-';
+  document.getElementById('inspBDist').textContent=o.borderDist!=null?Math.round(o.borderDist):'-';
+  document.getElementById('inspConf').textContent=o.confidence!=null?o.confidence.toFixed(2):'-';
+  const rl=document.getElementById('inspReasons');
+  rl.innerHTML='';
+  if(o.reasons&&o.reasons.length){
+    const lbl=document.createElement('div');lbl.style.cssText='font-size:.72rem;color:var(--muted);margin-bottom:3px';lbl.textContent='Reason codes:';rl.appendChild(lbl);
+    for(const r of o.reasons){const s=document.createElement('span');s.className='reason-tag';s.textContent=r;rl.appendChild(s)}
+  }
+  if(isRem){const s=document.createElement('span');s.className='reason-tag';s.textContent='USER_REMOVED';rl.appendChild(s)}
+}
+function hideInspector(){
+  document.getElementById('inspEmpty').style.display='block';
+  document.getElementById('inspContent').style.display='none';
+  inspectedId=null;
+}
+
+// =================================================================
+//  UNDO / REDO
+// =================================================================
+function pushUndo(e){undoStack.push(e);redoStack=[]}
+function undo(){
+  if(!undoStack.length)return;const e=undoStack.pop();redoStack.push(e);
+  if(e.act==='addM')manualCols=manualCols.filter(c=>c.id!==e.col.id);
+  else if(e.act==='remA')removedAuto=removedAuto.filter(id=>id!==e.id);
+  else if(e.act==='remM')manualCols.splice(e.idx,0,e.col);
+  render();updateCounts();
+}
+function redo(){
+  if(!redoStack.length)return;const e=redoStack.pop();undoStack.push(e);
+  if(e.act==='addM')manualCols.push(e.col);
+  else if(e.act==='remA')removedAuto.push(e.id);
+  else if(e.act==='remM')manualCols.splice(e.idx,1);
+  render();updateCounts();
+}
+
+// =================================================================
+//  IMAGE PROCESSING PIPELINE
+// =================================================================
+function toGray(){
+  const n=imgW*imgH;grayD=new Float32Array(n);
+  for(let i=0;i<n;i++)grayD[i]=.299*origPx[i*4]+.587*origPx[i*4+1]+.114*origPx[i*4+2];
+  markP('sGray');
+}
+
+function gaussBlur(src,w,h,radius){
+  if(radius<=0){blurD=new Float32Array(src);markP('sBlur');return}
+  const sig=radius/2,ks=Math.ceil(sig*3)*2+1,half=ks>>1;
+  const k=new Float32Array(ks);let s=0;
+  for(let i=0;i<ks;i++){k[i]=Math.exp(-((i-half)**2)/(2*sig*sig));s+=k[i]}
+  for(let i=0;i<ks;i++)k[i]/=s;
+  const tmp=new Float32Array(w*h),out=new Float32Array(w*h);
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){let v=0;for(let j=-half;j<=half;j++)v+=src[y*w+Math.min(w-1,Math.max(0,x+j))]*k[j+half];tmp[y*w+x]=v}
+  for(let x=0;x<w;x++)for(let y=0;y<h;y++){let v=0;for(let j=-half;j<=half;j++)v+=tmp[Math.min(h-1,Math.max(0,y+j))*w+x]*k[j+half];out[y*w+x]=v}
+  blurD=out;markP('sBlur');
+}
+
+function bgSub(src,w,h){
+  const ds=4,dw=Math.ceil(w/ds),dh=Math.ceil(h/ds);
+  const dsSrc=new Float32Array(dw*dh);
+  for(let y=0;y<dh;y++)for(let x=0;x<dw;x++)dsSrc[y*dw+x]=src[Math.min(y*ds,h-1)*w+Math.min(x*ds,w-1)];
+  const sig=Math.max(15,Math.round(Math.min(dw,dh)/4)),ks=Math.min(Math.ceil(sig*2)*2+1,51),half=ks>>1;
+  const k=new Float32Array(ks);let s=0;
+  for(let i=0;i<ks;i++){k[i]=Math.exp(-((i-half)**2)/(2*sig*sig));s+=k[i]}
+  for(let i=0;i<ks;i++)k[i]/=s;
+  const t=new Float32Array(dw*dh),bg=new Float32Array(dw*dh);
+  for(let y=0;y<dh;y++)for(let x=0;x<dw;x++){let v=0;for(let j=-half;j<=half;j++)v+=dsSrc[y*dw+Math.min(dw-1,Math.max(0,x+j))]*k[j+half];t[y*dw+x]=v}
+  for(let x=0;x<dw;x++)for(let y=0;y<dh;y++){let v=0;for(let j=-half;j<=half;j++)v+=t[Math.min(dh-1,Math.max(0,y+j))*dw+x]*k[j+half];bg[y*dw+x]=v}
+  bgSubD=new Float32Array(w*h);
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+    const fx=x/ds,fy=y/ds,x0=Math.floor(fx),y0=Math.floor(fy),x1=Math.min(x0+1,dw-1),y1=Math.min(y0+1,dh-1),dx=fx-x0,dy=fy-y0;
+    const b=bg[y0*dw+x0]*(1-dx)*(1-dy)+bg[y0*dw+x1]*dx*(1-dy)+bg[y1*dw+x0]*(1-dx)*dy+bg[y1*dw+x1]*dx*dy;
+    bgSubD[y*w+x]=Math.max(0,Math.min(255,src[y*w+x]-b+128));
+  }
+  markP('sBg');
+}
+
+// Otsu threshold
+function otsuThreshold(data,w,h,mask){
+  return ColonyCore.otsuThreshold(data,w,h,mask);
+}
+
+// Local adaptive threshold
+function adaptiveThreshold(data,w,h,winSize,offset,invert){
+  return ColonyCore.adaptiveThreshold(data,w,h,winSize,offset,invert);
+}
+
+// =================================================================
+//  CONNECTED COMPONENTS + FEATURES
+// =================================================================
+function labelAndFeature(mask,w,h,srcGray){
+  const labels=new Int32Array(w*h);
+  let labelCount=0;
+  const comps=[];
+  // 8-connectivity neighbor offsets: 4 cardinal + 4 diagonal
+  const dx8=[-1,1,0,0,-1,-1,1,1], dy8=[0,0,-1,1,-1,1,-1,1];
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+    const idx=y*w+x;
+    if(mask[idx]&&!labels[idx]){
+      labelCount++;
+      const comp={pixels:0,sumX:0,sumY:0,perim:0,borderPx:[],sumI:0,
+        sumXX:0,sumYY:0,sumXY:0};
+      const q=[idx];labels[idx]=labelCount;let head=0;
+      while(head<q.length){
+        const ci=q[head++],cx=ci%w,cy=(ci-cx)/w;
+        comp.pixels++;comp.sumX+=cx;comp.sumY+=cy;
+        comp.sumI+=(srcGray?srcGray[ci]:128);
+        // Second moments computed inline (fix #10: no pxList needed)
+        // Deferred to second pass below after centroid is known
+        let isBorder=false;
+        for(let d=0;d<8;d++){
+          const nx=cx+dx8[d],ny=cy+dy8[d];
+          if(nx<0||nx>=w||ny<0||ny>=h){isBorder=true;continue}
+          const ni=ny*w+nx;
+          if(mask[ni]&&!labels[ni]){labels[ni]=labelCount;q.push(ni)}
+          if(!mask[ni])isBorder=true;
+        }
+        if(isBorder)comp.borderPx.push(ci);
+      }
+      // Chain-code perimeter: walk border pixels, count straight=1.0 diagonal=sqrt(2)
+      // For efficiency, estimate from border pixel count with correction factor
+      // More accurate: sum neighbor distances between adjacent border pixels
+      // Best practical approach: count 4-connected bg neighbors as chain steps
+      {
+        let perimSum=0;
+        for(const bi of comp.borderPx){
+          const bx=bi%w,by=(bi-bx)/w;
+          // Count how many of the 8 neighbors are background — each contributes a boundary segment
+          // Straight neighbor bg → 1.0 edge length, diagonal neighbor bg → sqrt(2)/2 edge length
+          for(let d=0;d<8;d++){
+            const nx=bx+dx8[d],ny=by+dy8[d];
+            if(nx<0||nx>=w||ny<0||ny>=h){perimSum+=(d<4?1.0:0.707);continue}
+            if(!mask[ny*w+nx])perimSum+=(d<4?1.0:0.707);
+          }
+        }
+        comp.perim=perimSum;
+      }
+      // Second moments (second pass over BFS queue which is still in memory)
+      const mx=comp.sumX/comp.pixels, my=comp.sumY/comp.pixels;
+      for(let qi=0;qi<q.length;qi++){
+        const pi=q[qi],px2=pi%w,py2=(pi-px2)/w;
+        comp.sumXX+=(px2-mx)**2;comp.sumYY+=(py2-my)**2;comp.sumXY+=(px2-mx)*(py2-my);
+      }
+      comps.push(comp);
+    }
+  }
+  return {labels,comps};
+}
+
+// Convex hull area from boundary pixels (Graham scan)
+function convexHullArea(borderPx,w){
+  return ColonyCore.convexHullArea(borderPx,w);
+}
+
+function computeEccentricity(sumXX,sumYY,sumXY,n){
+  return ColonyCore.computeEccentricity(sumXX,sumYY,sumXY,n);
+}
+
+// =================================================================
+//  WATERSHED SPLITTING
+// =================================================================
+function watershedSplit(comp,mask,w,h,hFrac,peakDistFrac,minSz,labels,compLabel){
+  const cx=Math.round(comp.sumX/comp.pixels),cy=Math.round(comp.sumY/comp.pixels);
+  const estR=Math.ceil(Math.sqrt(comp.pixels/Math.PI))+10;
+  const mX=Math.max(0,cx-estR*2),mY=Math.max(0,cy-estR*2);
+  const MX=Math.min(w-1,cx+estR*2),MY=Math.min(h-1,cy+estR*2);
+  const bw=MX-mX+1,bh=MY-mY+1;
+  // Local mask from labels (avoids storing full pxList)
+  const lm=new Uint8Array(bw*bh);
+  for(let y=mY;y<=MY;y++)for(let x=mX;x<=MX;x++){if(labels[y*w+x]===compLabel)lm[(y-mY)*bw+(x-mX)]=1}
+  // Distance transform
+  const dist=new Float32Array(bw*bh);
+  for(let y=0;y<bh;y++)for(let x=0;x<bw;x++){
+    const i=y*bw+x;if(!lm[i]){dist[i]=0;continue}let d=1e6;
+    if(y>0)d=Math.min(d,dist[(y-1)*bw+x]+3);if(x>0)d=Math.min(d,dist[y*bw+x-1]+3);
+    if(x>0&&y>0)d=Math.min(d,dist[(y-1)*bw+x-1]+4);if(x<bw-1&&y>0)d=Math.min(d,dist[(y-1)*bw+x+1]+4);
+    dist[i]=d;
+  }
+  for(let y=bh-1;y>=0;y--)for(let x=bw-1;x>=0;x--){
+    const i=y*bw+x;if(!lm[i])continue;
+    if(y<bh-1)dist[i]=Math.min(dist[i],dist[(y+1)*bw+x]+3);if(x<bw-1)dist[i]=Math.min(dist[i],dist[y*bw+x+1]+3);
+    if(x<bw-1&&y<bh-1)dist[i]=Math.min(dist[i],dist[(y+1)*bw+x+1]+4);if(x>0&&y<bh-1)dist[i]=Math.min(dist[i],dist[(y+1)*bw+x-1]+4);
+  }
+  let maxD=0;for(let i=0;i<dist.length;i++)if(dist[i]>maxD)maxD=dist[i];
+  if(maxD<6)return [comp];
+  // h-maxima suppression
+  const hVal=maxD*hFrac;
+  const minPD=Math.sqrt(comp.pixels/Math.PI)*peakDistFrac;
+  const cands=[];
+  for(let y=1;y<bh-1;y++)for(let x=1;x<bw-1;x++){
+    const i=y*bw+x;if(dist[i]<hVal)continue;
+    let isMax=true;
+    for(let dy=-1;dy<=1&&isMax;dy++)for(let dx=-1;dx<=1&&isMax;dx++)if((dy||dx)&&dist[(y+dy)*bw+x+dx]>dist[i])isMax=false;
+    if(isMax)cands.push({gx:x+mX,gy:y+mY,lx:x,ly:y,d:dist[i]});
+  }
+  cands.sort((a,b)=>b.d-a.d);
+  const seeds=[];
+  for(const c of cands){let ok=true;for(const s of seeds)if(Math.hypot(c.gx-s.gx,c.gy-s.gy)<minPD){ok=false;break}if(ok)seeds.push(c)}
+  if(seeds.length<=1)return [comp];
+  // Fix #8: Priority-queue watershed (flood from highest dist first)
+  const mm=new Int32Array(bw*bh);
+  // Min-heap keyed by -dist (highest dist = highest priority)
+  const hp=[];
+  function hpUp(i){while(i>0){const p=(i-1)>>1;if(hp[p][0]<=hp[i][0])break;const t=hp[p];hp[p]=hp[i];hp[i]=t;i=p}}
+  function hpDn(i){const n=hp.length;while(true){let s=i;const l=2*i+1,r=2*i+2;if(l<n&&hp[l][0]<hp[s][0])s=l;if(r<n&&hp[r][0]<hp[s][0])s=r;if(s===i)break;const t=hp[s];hp[s]=hp[i];hp[i]=t;i=s}}
+  function hpPush(v){hp.push(v);hpUp(hp.length-1)}
+  function hpPop(){const top=hp[0];const last=hp.pop();if(hp.length>0){hp[0]=last;hpDn(0)}return top}
+  for(let si=0;si<seeds.length;si++){const s=seeds[si],li=s.ly*bw+s.lx;mm[li]=si+1;hpPush([-dist[li],li])}
+  while(hp.length>0){
+    const [,ci]=hpPop(),cx2=ci%bw,cy2=(ci-cx2)/bw,m=mm[ci];
+    const nb=[];
+    if(cx2>0)nb.push(ci-1);if(cx2<bw-1)nb.push(ci+1);if(cy2>0)nb.push(ci-bw);if(cy2<bh-1)nb.push(ci+bw);
+    for(const ni of nb)if(lm[ni]&&!mm[ni]){mm[ni]=m;hpPush([-dist[ni],ni])}
+  }
+  // Collect sub-components
+  const scs=[];
+  for(let si=0;si<seeds.length;si++)scs.push({pixels:0,sumX:0,sumY:0,perim:0,borderPx:[],sumI:0,sumXX:0,sumYY:0,sumXY:0});
+  const dx8=[-1,1,0,0,-1,-1,1,1],dy8=[0,0,-1,1,-1,1,-1,1];
+  for(let y=0;y<bh;y++)for(let x=0;x<bw;x++){
+    const m=mm[y*bw+x];if(!m)continue;
+    const sc=scs[m-1],gx=x+mX,gy=y+mY;
+    sc.pixels++;sc.sumX+=gx;sc.sumY+=gy;
+    sc.sumI+=(grayD?grayD[gy*w+gx]:128);
+    let isBorder=false;
+    // Check 8-connected for border + chain-code perimeter
+    let perimContrib=0;
+    for(let d=0;d<8;d++){
+      const nx=x+dx8[d],ny=y+dy8[d];
+      if(nx<0||nx>=bw||ny<0||ny>=bh){isBorder=true;perimContrib+=(d<4?1.0:0.707);continue}
+      const nm=mm[ny*bw+nx];
+      if(nm!==m){isBorder=true;perimContrib+=(d<4?1.0:0.707)}
+    }
+    sc.perim+=perimContrib;
+    if(isBorder)sc.borderPx.push(gy*w+gx);
+  }
+  // Second moments
+  for(const sc of scs){
+    if(!sc.pixels)continue;
+    const mx2=sc.sumX/sc.pixels,my2=sc.sumY/sc.pixels;
+    // Re-iterate over local patch for this sub-component
+    for(let y=0;y<bh;y++)for(let x=0;x<bw;x++){
+      if(mm[y*bw+x]!==scs.indexOf(sc)+1)continue;
+      const gx=x+mX,gy=y+mY;
+      sc.sumXX+=(gx-mx2)**2;sc.sumYY+=(gy-my2)**2;sc.sumXY+=(gx-mx2)*(gy-my2);
+    }
+  }
+  return scs.filter(c=>c.pixels>0);
+}
+
+// =================================================================
+//  MAIN DETECTION
+// =================================================================
+function runDetection(){
+  if(!origPx)return;
+  // Fix #4: Warn if manual edits will be lost
+  if(manualCols.length>0||removedAuto.length>0){
+    if(!confirm('Re-running detection will clear '+manualCols.length+' manual additions and '+removedAuto.length+' manual removals. Continue?'))return;
+  }
+  const t0=performance.now();
+  prevAcceptedCount=allObjects.filter(o=>o.status==='accepted').length+manualCols.length-removedAuto.length;
+
+  const blurRadius=parseInt($('blurR').value);
+  const threshMeth=$('threshMethod').value;
+  const threshManual=parseInt($('threshVal').value);
+  const adaptW=parseInt($('adaptWin').value), adaptO=parseInt($('adaptOff').value);
+  const minSize=parseInt($('minSz').value), maxSize=parseInt($('maxSz').value);
+  const minCircV=parseInt($('minCirc').value)/100;
+  const minSolV=parseInt($('minSol').value)/100;
+  const maxEccV=parseInt($('maxEcc').value)/100;
+  const invert=$('invertChk').checked;
+  const doBgSub=$('bgSubChk').checked;
+  const doWS=$('wsChk').checked;
+  const borderRej=$('borderRej').checked;
+  const useR=$('useROI').checked&&roi;
+  const em=parseInt($('edgeMargin').value)/100;
+  const hFrac=parseInt($('wsH').value)/100;
+  const peakDistFrac=parseInt($('wsPD').value)/100;
+  const niblackK=parseInt($('niblackK').value)/100;
+  const sauvolaR=parseInt($('sauvolaR').value);
+
+  resetP();
+
+  // Save previous state for delta highlights
+  prevObjects=allObjects.filter(o=>o.status==='accepted'||o.status==='ambiguous').map(o=>({id:o.id,x:o.x,y:o.y,area:o.area}));
+
+  // Fix #6: Show processing overlay, defer pipeline to allow paint
+  const _overlay=$('procOverlay');_overlay.classList.add('active');$('detectBtn').disabled=true;
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{_runPipeline(blurRadius,threshMeth,threshManual,adaptW,adaptO,minSize,maxSize,minCircV,minSolV,maxEccV,invert,doBgSub,doWS,borderRej,useR,em,hFrac,peakDistFrac,niblackK,sauvolaR,t0);_overlay.classList.remove('active');$('detectBtn').disabled=false}));
+}
+function _runPipeline(blurRadius,threshMeth,threshManual,adaptW,adaptO,minSize,maxSize,minCircV,minSolV,maxEccV,invert,doBgSub,doWS,borderRej,useR,em,hFrac,peakDistFrac,niblackK,sauvolaR,t0){
+  // 1. Grayscale
+  toGray(); // marks sGray
+
+  // 2. Blur
+  gaussBlur(grayD,imgW,imgH,blurRadius);
+
+  // 3. BG sub
+  let detectSrc=blurD;
+  if(doBgSub){bgSub(blurD,imgW,imgH);detectSrc=bgSubD}
+  else{bgSubD=blurD;markP('sBg')}
+
+  // 4. Threshold
+  // Create ROI mask for threshold computation
+  const roiMask=new Uint8Array(imgW*imgH);
+  if(useR){
+    const effR=roi.r*(1-em);
+    for(let y=0;y<imgH;y++)for(let x=0;x<imgW;x++){
+      roiMask[y*imgW+x]=Math.hypot(x-roi.cx,y-roi.cy)<=effR?1:0;
+    }
+  } else {
+    roiMask.fill(1);
+  }
+
+  if(threshMeth==='adaptive'){
+    binMask=adaptiveThreshold(detectSrc,imgW,imgH,adaptW,adaptO,invert);
+    for(let i=0;i<imgW*imgH;i++)if(!roiMask[i])binMask[i]=0;
+  } else if(threshMeth==='niblack'){
+    binMask=niblackThreshold(detectSrc,imgW,imgH,adaptW,niblackK,invert);
+    for(let i=0;i<imgW*imgH;i++)if(!roiMask[i])binMask[i]=0;
+  } else if(threshMeth==='sauvola'){
+    binMask=sauvolaThreshold(detectSrc,imgW,imgH,adaptW,niblackK,sauvolaR,invert);
+    for(let i=0;i<imgW*imgH;i++)if(!roiMask[i])binMask[i]=0;
+  } else {
+    let tVal=threshManual;
+    if(threshMeth==='otsu'){
+      tVal=otsuThreshold(detectSrc,imgW,imgH,useR?roiMask:null);
+      $('threshVal').value=tVal;$('threshValV').textContent=tVal;
+    }
+    binMask=new Uint8Array(imgW*imgH);
+    for(let i=0;i<imgW*imgH;i++){
+      if(!roiMask[i]){binMask[i]=0;continue}
+      binMask[i]=invert?(detectSrc[i]<tVal?1:0):(detectSrc[i]>=tVal?1:0);
+    }
+  }
+  markP('sThresh');
+
+  // 5. Morphology cleanup: remove tiny specks, fill small holes
+  // Simple: remove connected components smaller than minSize/4
+  {
+    const {labels:tmpL,comps:tmpC}=labelAndFeature(binMask,imgW,imgH,null);
+    const minClean=Math.max(3,Math.floor(minSize/4));
+    for(let i=0;i<tmpC.length;i++){if(tmpC[i].pixels<minClean)for(const pi of tmpC[i].pxList)binMask[pi]=0}
+    // Fill small holes (invert, remove small cc, invert back)
+    const inv=new Uint8Array(imgW*imgH);
+    for(let i=0;i<imgW*imgH;i++)inv[i]=binMask[i]?0:(roiMask[i]?1:0);
+    const {comps:holeC}=labelAndFeature(inv,imgW,imgH,null);
+    for(const hc of holeC){if(hc.pixels<minClean*2)for(const pi of hc.pxList)binMask[pi]=1}
+  }
+  markP('sClean');
+
+  // 6. Connected components + features
+  const {labels,comps}=labelAndFeature(binMask,imgW,imgH,grayD);
+  markP('sLabel');
+
+  // 7. Watershed splitting
+  let finalComps=[];
+  if(doWS){
+    for(let ci=0;ci<comps.length;ci++){
+      const comp=comps[ci];
+      if(comp.pixels>=minSize&&comp.pixels>minSize*2.5){
+        const subs=watershedSplit(comp,binMask,imgW,imgH,hFrac,peakDistFrac,minSize,labels,ci+1);
+        if(subs.length>1){for(const s of subs)s.splitFrom=true;finalComps.push(...subs);continue}
+      }
+      finalComps.push(comp);
+    }
+  } else finalComps=comps;
+  markP('sSplit');
+
+  // 8. Feature computation + filter with reason codes
+  allObjects=[];
+  for(const comp of finalComps){
+    const obj={
+      id:nextId++,
+      x:Math.round(comp.sumX/comp.pixels),
+      y:Math.round(comp.sumY/comp.pixels),
+      area:comp.pixels,
+      perimeter:comp.perim,
+      circularity:comp.perim>0?Math.min(1,(4*Math.PI*comp.pixels)/(comp.perim**2)):0,
+      solidity:Math.min(1,comp.pixels/convexHullArea(comp.borderPx,imgW)),
+      eccentricity:computeEccentricity(comp.sumXX,comp.sumYY,comp.sumXY,comp.pixels),
+      meanIntensity:comp.sumI/comp.pixels,
+      borderDist:useR?roi.r*(1-em)-Math.hypot(comp.sumX/comp.pixels-roi.cx,comp.sumY/comp.pixels-roi.cy):null,
+      confidence:1,
+      splitFrom:comp.splitFrom||null,
+      status:'accepted',
+      reasons:[],
+      source:'auto'
+    };
+
+    // Apply filters
+    if(obj.area<minSize){obj.status='rejected';obj.reasons.push('REJ_SIZE_MIN')}
+    if(obj.area>maxSize){obj.status='rejected';obj.reasons.push('REJ_SIZE_MAX')}
+    if(obj.circularity<minCircV){obj.status='rejected';obj.reasons.push('REJ_CIRC_MIN')}
+    if(obj.solidity<minSolV){obj.status='rejected';obj.reasons.push('REJ_SOL_MIN')}
+    if(obj.eccentricity>maxEccV){obj.status='rejected';obj.reasons.push('REJ_ECC_MAX')}
+    if(borderRej&&useR&&obj.borderDist!=null&&obj.borderDist<Math.sqrt(obj.area/Math.PI)){
+      obj.status='rejected';obj.reasons.push('REJ_BORDER_TOUCH');
+    }
+
+    // Confidence scoring
+    let conf=1;
+    // Proximity to thresholds reduces confidence
+    if(obj.area>0){
+      const sizeRange=maxSize-minSize;
+      if(sizeRange>0){
+        const distFromMin=(obj.area-minSize)/sizeRange;
+        const distFromMax=(maxSize-obj.area)/sizeRange;
+        conf*=Math.min(1,Math.min(distFromMin,distFromMax)*5+0.5);
+      }
+    }
+    if(minCircV>0&&obj.circularity>0)conf*=Math.min(1,(obj.circularity-minCircV)/(0.3)+0.5);
+    // Fix #7: Include solidity and eccentricity proximity in confidence
+    if(minSolV>0&&obj.solidity>0)conf*=Math.min(1,(obj.solidity-minSolV)/(0.3)+0.5);
+    if(maxEccV<1&&obj.eccentricity>0)conf*=Math.min(1,(maxEccV-obj.eccentricity)/(0.3)+0.5);
+    if(obj.borderDist!=null){const br=Math.sqrt(obj.area/Math.PI);conf*=Math.min(1,obj.borderDist/(br*2))}
+    obj.confidence=Math.max(0,Math.min(1,conf));
+
+    // Mark low-confidence accepted objects as ambiguous
+    if(obj.status==='accepted'&&obj.confidence<0.4){
+      obj.status='ambiguous';obj.reasons.push('LOW_CONFIDENCE');
+    }
+
+    allObjects.push(obj);
+  }
+  markP('sFilter');
+
+  // Reset manual state
+  manualCols=[];removedAuto=[];undoStack=[];redoStack=[];
+
+  const elapsed=Math.round(performance.now()-t0);
+
+  // Compute delta highlights (match by proximity)
+  deltaNewIds=new Set();deltaLostIds=new Set();
+  const curAccepted=allObjects.filter(o=>o.status==='accepted'||o.status==='ambiguous');
+  const matchDist=Math.max(15,imgW/50);
+  const matchedPrev=new Set();
+  for(const cur of curAccepted){
+    let found=false;
+    for(const prev of prevObjects){
+      if(matchedPrev.has(prev.id))continue;
+      if(Math.hypot(cur.x-prev.x,cur.y-prev.y)<matchDist){found=true;matchedPrev.add(prev.id);break}
+    }
+    if(!found)deltaNewIds.add(cur.id);
+  }
+  for(const prev of prevObjects){if(!matchedPrev.has(prev.id))deltaLostIds.add(prev.id)}
+  deltaFadeStart=performance.now();
+  // Store lost positions for rendering
+  window._deltaLost=prevObjects.filter(p=>deltaLostIds.has(p.id));
+
+  render();updateCounts();updateQCFlags();renderObjectList();
+  const acc=allObjects.filter(o=>o.status==='accepted').length;
+  const rej=allObjects.filter(o=>o.status==='rejected').length;
+  const amb=allObjects.filter(o=>o.status==='ambiguous').length;
+  toast('Detected '+acc+' accepted, '+amb+' ambiguous, '+rej+' rejected ('+elapsed+'ms)');
+  updateStabilityChart();
+  $('compareBar').classList.add('active');
+  // Schedule delta fade-out re-renders
+  if(deltaNewIds.size||deltaLostIds.size){const fadeTick=()=>{const age=performance.now()-deltaFadeStart;if(age<2500){render();requestAnimationFrame(fadeTick)}else{deltaNewIds.clear();deltaLostIds.clear();render()}};requestAnimationFrame(fadeTick)}
+}
+
+// =================================================================
+//  RENDERING
+// =================================================================
+function render(){
+  if(!origImg)return;
+  X.clearRect(0,0,imgW,imgH);
+
+  if(overlayMode==='original'||!grayD){X.drawImage(origImg,0,0)}
+  else if(overlayMode==='gray'&&grayD){drawGrayOv(grayD)}
+  else if(overlayMode==='mask'&&binMask){drawMaskOv()}
+  else if(overlayMode==='accrej'){drawAccRejOv()}
+  else X.drawImage(origImg,0,0);
+
+  // ROI
+  if(roi){
+    X.save();
+    const em2=parseInt($('edgeMargin').value)/100;
+    const effR=roi.r*(1-em2);
+    X.strokeStyle='#38bdf8';X.lineWidth=Math.max(2,imgW/300);X.setLineDash([8,6]);
+    X.beginPath();X.arc(roi.cx,roi.cy,roi.r,0,Math.PI*2);X.stroke();
+    if(em2>0){X.strokeStyle='#f59e0b';X.beginPath();X.arc(roi.cx,roi.cy,effR,0,Math.PI*2);X.stroke()}
+    X.setLineDash([]);
+    if($('useROI').checked&&overlayMode==='original'){
+      X.fillStyle='rgba(0,0,0,.3)';X.beginPath();X.rect(0,0,imgW,imgH);X.arc(roi.cx,roi.cy,effR,0,Math.PI*2,true);X.fill();
+    }
+    X.restore();
+  }
+
+  const lw=Math.max(1.5,imgW/500);
+
+  // Draw rejected (dashed gray) — only in accrej mode or always faint
+  if(overlayMode==='accrej'){
+    X.setLineDash([6,4]);X.strokeStyle=cssVar('--gray-slate');X.lineWidth=lw;
+    for(const o of allObjects){
+      if(o.status!=='rejected')continue;
+      const r=Math.max(4,Math.sqrt(o.area/Math.PI));
+      X.beginPath();X.arc(o.x,o.y,r,0,Math.PI*2);X.stroke();
+    }
+    X.setLineDash([]);
+  }
+
+  // Ambiguous (dotted amber)
+  X.setLineDash([2,3]);X.strokeStyle=cssVar('--amber');X.lineWidth=lw;
+  for(const o of allObjects){
+    if(o.status!=='ambiguous'||removedAuto.includes(o.id))continue;
+    const r=Math.max(5,Math.sqrt(o.area/Math.PI));
+    X.beginPath();X.arc(o.x,o.y,r,0,Math.PI*2);X.stroke();
+    // ? marker
+    X.fillStyle=cssVar('--amber');X.font=Math.max(10,r)+'px sans-serif';X.textAlign='center';X.textBaseline='middle';
+    X.fillText('?',o.x,o.y);
+  }
+  X.setLineDash([]);
+
+  // Accepted auto (solid green)
+  X.strokeStyle=cssVar('--green');X.lineWidth=lw;
+  for(const o of allObjects){
+    if(o.status!=='accepted'||removedAuto.includes(o.id))continue;
+    const r=Math.max(5,Math.sqrt(o.area/Math.PI));
+    X.beginPath();X.arc(o.x,o.y,r,0,Math.PI*2);X.stroke();
+    X.fillStyle='rgba(34,197,94,.12)';X.beginPath();X.arc(o.x,o.y,r,0,Math.PI*2);X.fill();
+    // center dot
+    X.fillStyle='rgba(34,197,94,.5)';X.beginPath();X.arc(o.x,o.y,2,0,Math.PI*2);X.fill();
+    // Split boundary marker
+    if(o.splitFrom){X.strokeStyle=cssVar('--purple');X.lineWidth=lw*.7;X.globalAlpha=.6;X.beginPath();X.arc(o.x,o.y,r+3,0,Math.PI*2);X.stroke();X.globalAlpha=1;X.strokeStyle=cssVar('--green');X.lineWidth=lw}
+  }
+
+  // User-removed auto (red slash)
+  X.strokeStyle=cssVar('--red');X.lineWidth=lw;
+  for(const rid of removedAuto){
+    const o=allObjects.find(ob=>ob.id===rid);if(!o)continue;
+    const r=Math.max(5,Math.sqrt(o.area/Math.PI));
+    X.beginPath();X.arc(o.x,o.y,r,0,Math.PI*2);X.stroke();
+    X.beginPath();X.moveTo(o.x-r,o.y+r);X.lineTo(o.x+r,o.y-r);X.stroke();
+  }
+
+  // Manual (magenta crosshair + ring)
+  const mr=Math.max(7,imgW/120);
+  X.strokeStyle=cssVar('--magenta');X.lineWidth=lw;
+  for(const c of manualCols){
+    X.beginPath();X.arc(c.x,c.y,mr,0,Math.PI*2);X.stroke();
+    X.beginPath();X.moveTo(c.x-mr,c.y);X.lineTo(c.x+mr,c.y);X.moveTo(c.x,c.y-mr);X.lineTo(c.x,c.y+mr);X.stroke();
+  }
+
+  // Highlight inspected
+  if(inspectedId!=null){
+    const o=allObjects.find(ob=>ob.id===inspectedId)||manualCols.find(c=>c.id===inspectedId);
+    if(o){
+      X.strokeStyle='#fff';X.lineWidth=lw*2.5;X.setLineDash([4,4]);
+      const r=o.area?Math.max(7,Math.sqrt(o.area/Math.PI)+4):mr+4;
+      X.beginPath();X.arc(o.x,o.y,r,0,Math.PI*2);X.stroke();
+      X.setLineDash([]);
+    }
+  }
+
+  // Delta highlights: newly accepted (cyan glow), newly lost (orange glow)
+  if(deltaNewIds.size||deltaLostIds.size){
+    const age=performance.now()-deltaFadeStart;
+    const alpha=Math.max(0,1-age/2500);
+    if(alpha>0){
+      X.save();X.globalAlpha=alpha;
+      // Newly accepted: cyan glow
+      X.strokeStyle='#06b6d4';X.lineWidth=lw*3;X.setLineDash([]);
+      for(const o of allObjects){
+        if(!deltaNewIds.has(o.id))continue;
+        const r=Math.max(6,Math.sqrt(o.area/Math.PI)+3);
+        X.beginPath();X.arc(o.x,o.y,r,0,Math.PI*2);X.stroke();
+      }
+      // Lost objects: orange glow at their old positions
+      X.strokeStyle='#fb923c';X.lineWidth=lw*3;X.setLineDash([6,3]);
+      if(window._deltaLost){
+        for(const p of window._deltaLost){
+          const r=Math.max(6,Math.sqrt((p.area||100)/Math.PI)+3);
+          X.beginPath();X.arc(p.x,p.y,r,0,Math.PI*2);X.stroke();
+        }
+      }
+      X.setLineDash([]);X.restore();
+    }
+  }
+
+  $('clrManBtn').disabled=!manualCols.length;
+}
+
+function drawGrayOv(d){
+  const img=X.createImageData(imgW,imgH),px=img.data;
+  for(let i=0;i<imgW*imgH;i++){const v=Math.round(d[i]);px[i*4]=px[i*4+1]=px[i*4+2]=v;px[i*4+3]=255}
+  X.putImageData(img,0,0);
+}
+function drawMaskOv(){
+  X.drawImage(origImg,0,0);const img=X.getImageData(0,0,imgW,imgH),px=img.data;
+  for(let i=0;i<imgW*imgH;i++){
+    if(binMask[i]){px[i*4]=Math.round(px[i*4]*.3);px[i*4+1]=Math.min(255,Math.round(px[i*4+1]*.3+180));px[i*4+2]=Math.round(px[i*4+2]*.3)}
+    else{px[i*4]=Math.round(px[i*4]*.35);px[i*4+1]=Math.round(px[i*4+1]*.35);px[i*4+2]=Math.round(px[i*4+2]*.35)}
+  }
+  X.putImageData(img,0,0);
+}
+function drawAccRejOv(){
+  // Dim original, then color accepted/rejected pixels
+  X.drawImage(origImg,0,0);const img=X.getImageData(0,0,imgW,imgH),px=img.data;
+  for(let i=0;i<imgW*imgH;i++){px[i*4]=Math.round(px[i*4]*.4);px[i*4+1]=Math.round(px[i*4+1]*.4);px[i*4+2]=Math.round(px[i*4+2]*.4)}
+  // Color accepted green, rejected gray in mask
+  if(binMask){
+    for(let i=0;i<imgW*imgH;i++){
+      if(binMask[i]){px[i*4+1]=Math.min(255,px[i*4+1]+80);px[i*4+3]=255}
+    }
+  }
+  X.putImageData(img,0,0);
+}
+
+// =================================================================
+//  COUNTS & DELTA
+// =================================================================
+function updateCounts(){
+  const accAuto=allObjects.filter(o=>(o.status==='accepted'||o.status==='ambiguous')&&!removedAuto.includes(o.id)).length;
+  const mc=manualCols.length;
+  const total=accAuto+mc;
+  const rej=allObjects.filter(o=>o.status==='rejected').length;
+  $('totalCount').textContent=total;
+  $('breakdown').textContent='Auto: '+accAuto+' | Manual: +'+mc+' | Removed: -'+removedAuto.length+' | Rejected: '+rej;
+  $('saveSmpBtn').disabled=total===0;
+  $('expSumBtn').disabled=!samples.length;$('expDetBtn').disabled=!samples.length;$('expJsonBtn').disabled=!samples.length;
+
+  // Delta card
+  const delta=total-prevAcceptedCount;
+  const dc=$('deltaCard');
+  if(prevAcceptedCount>0||allObjects.length>0){
+    dc.classList.add('show');
+    dc.className='delta-card show '+(delta>0?'delta-pos':delta<0?'delta-neg':'delta-neutral');
+    dc.textContent='Count: '+prevAcceptedCount+' → '+total+' ('+(delta>=0?'+':'')+delta+')';
+  }
+}
+
+// =================================================================
+//  QC FLAGS
+// =================================================================
+function updateQCFlags(){
+  const el=$('qcFlags');el.innerHTML='';
+  const acc=allObjects.filter(o=>o.status==='accepted');
+  const amb=allObjects.filter(o=>o.status==='ambiguous');
+  const flags=[];
+
+  // Overcrowded check
+  if(acc.length>200)flags.push({t:'warn',m:'&#9888; High density ('+acc.length+' colonies) — possible undercount from merges'});
+  // Ambiguous fraction
+  if(amb.length>acc.length*.15&&amb.length>3)flags.push({t:'warn',m:'&#9888; '+amb.length+' ambiguous objects ('+Math.round(amb.length/(acc.length+amb.length)*100)+'%) — review manually'});
+  // Low contrast check
+  if(grayD){
+    let mn=255,mx=0;const n=imgW*imgH;for(let i=0;i<n;i++){if(grayD[i]<mn)mn=grayD[i];if(grayD[i]>mx)mx=grayD[i]}
+    if(mx-mn<60)flags.push({t:'warn',m:'&#9888; Low contrast (range: '+Math.round(mn)+'-'+Math.round(mx)+') — consider CLAHE or re-staining'});
+  }
+  // No ROI
+  if(!roi)flags.push({t:'warn',m:'&#9888; No ROI set — background artifacts may be counted'});
+
+  if(!flags.length)flags.push({t:'ok',m:'&#10003; No QC warnings'});
+
+  for(const f of flags){const d=document.createElement('div');d.className='qc-flag '+f.t;d.innerHTML=f.m;el.appendChild(d)}
+}
+
+// =================================================================
+//  OVERLAY / MODE / ZOOM
+// =================================================================
+function setOverlay(m){overlayMode=m;['tbOrig','tbGray','tbMask','tbAccRej'].forEach(id=>{$(id).classList.toggle('active',id==='tb'+{original:'Orig',gray:'Gray',mask:'Mask',accrej:'AccRej'}[m])});render()}
+function setMode(m){curMode=m;updModeUI()}
+function updModeUI(){
+  $('mAdd').classList.toggle('active',curMode==='add');$('mRem').classList.toggle('active',curMode==='remove');
+  $('tbAdd').classList.toggle('active',curMode==='add');$('tbRem').classList.toggle('active',curMode==='remove');
+  $('tbROI').classList.toggle('active',curMode==='roi');
+}
+function clearManual(){manualCols=[];render();updateCounts()}
+function clearAll(){allObjects=[];manualCols=[];removedAuto=[];undoStack=[];redoStack=[];prevAcceptedCount=0;render();updateCounts();hideInspector()}
+function zoomIn(){zoomScale=Math.min(zoomScale*1.3,5);applyZ()}
+function zoomOut(){zoomScale=Math.max(zoomScale/1.3,.1);applyZ()}
+function zoomFit(){const cw=document.getElementById('canvasContainer').parentElement.clientWidth-40;if(imgW>0)zoomScale=Math.min(1,cw/imgW);applyZ()}
+function applyZ(){C.style.width=(imgW*zoomScale)+'px';C.style.height=(imgH*zoomScale)+'px';$('zoomLbl').textContent=Math.round(zoomScale*100)+'%'}
+
+// =================================================================
+//  SLIDERS
+// =================================================================
+for(const[s,v]of[['blurR','blurRV'],['threshVal','threshValV'],['minSz','minSzV'],['maxSz','maxSzV'],['edgeMargin','edgeMarginV'],['adaptWin','adaptWinV'],['adaptOff','adaptOffV']])
+  $(s).addEventListener('input',e=>{$(v).textContent=e.target.value});
+$('minCirc').addEventListener('input',e=>{$('minCircV').textContent=(parseInt(e.target.value)/100).toFixed(2)});
+$('minSol').addEventListener('input',e=>{$('minSolV').textContent=(parseInt(e.target.value)/100).toFixed(2)});
+$('maxEcc').addEventListener('input',e=>{$('maxEccV').textContent=(parseInt(e.target.value)/100).toFixed(2)});
+$('wsH').addEventListener('input',e=>{$('wsHV').textContent=(parseInt(e.target.value)/100).toFixed(2)});
+$('wsPD').addEventListener('input',e=>{$('wsPDV').textContent=(parseInt(e.target.value)/100).toFixed(2)});
+
+// Threshold method switch
+$('threshMethod').addEventListener('change',e=>{
+  const v=e.target.value;
+  const isLocal=v==='adaptive'||v==='niblack'||v==='sauvola';
+  $('threshManualGroup').style.display=isLocal?'none':'block';
+  $('adaptiveGroup').style.display=isLocal?'block':'none';
+  $('adaptOffLabel').textContent=v==='adaptive'?'Adaptive Offset':'Offset (C)';
+  $('niblackKGroup').style.display=(v==='niblack'||v==='sauvola')?'block':'none';
+  $('sauvolaRGroup').style.display=v==='sauvola'?'block':'none';
+});
+$('niblackK').addEventListener('input',e=>{$('niblackKV').textContent=(parseInt(e.target.value)/100).toFixed(2)});
+$('sauvolaR').addEventListener('input',e=>{$('sauvolaRV').textContent=e.target.value});
+
+// =================================================================
+//  PIPELINE STEP INDICATORS
+// =================================================================
+function resetP(){document.querySelectorAll('.pstep').forEach(s=>s.classList.remove('done'))}
+function markP(id){$(id).classList.add('done')}
+
+// =================================================================
+//  SAMPLES
+// =================================================================
+function saveSample(){
+  const name=$('sampleName').value.trim()||('Sample '+(samples.length+1));
+  const cal=parseFloat($('calibration').value)||null;
+  const accepted=allObjects.filter(o=>(o.status==='accepted'||o.status==='ambiguous')&&!removedAuto.includes(o.id));
+  samples.push({
+    name, filename:origFn, timestamp:new Date().toISOString(),
+    auto:accepted.length, manual:manualCols.length, removed:removedAuto.length,
+    rejected:allObjects.filter(o=>o.status==='rejected').length,
+    ambiguous:allObjects.filter(o=>o.status==='ambiguous'&&!removedAuto.includes(o.id)).length,
+    total:accepted.length+manualCols.length,
+    calibration:cal,
+    settings:getSettings(),
+    colonies:[...accepted.map(o=>({...o})),...manualCols.map(c=>({...c,area:0,perimeter:0,circularity:0,solidity:0,eccentricity:0,meanIntensity:0,borderDist:null,confidence:1,reasons:[],source:'manual'}))],
+    removedIds:[...removedAuto],
+    qcFlags:$('qcFlags').innerText
+  });
+  $('sampleName').value='';renderSamples();updateCounts();
+  toast('Saved "'+name+'" ('+samples[samples.length-1].total+' colonies)');
+}
+function removeSample(i){samples.splice(i,1);renderSamples();updateCounts()}
+function renderSamples(){
+  const el=$('sampleList');el.innerHTML='';
+  for(let i=0;i<samples.length;i++){
+    const s=samples[i],d=document.createElement('div');d.className='sample-item';
+    d.innerHTML='<span class="nm">'+esc(s.name)+'</span><span class="sc">'+s.total+'</span><button onclick="removeSample('+i+')">&#x2715;</button>';
+    el.appendChild(d);
+  }
+  $('expSumBtn').disabled=!samples.length;$('expDetBtn').disabled=!samples.length;$('expJsonBtn').disabled=!samples.length;
+}
+
+function getSettings(){
+  return {
+    thresholdMethod:$('threshMethod').value,
+    thresholdValue:$('threshVal').value,
+    adaptiveWindowSize:$('adaptWin').value, adaptiveOffset:$('adaptOff').value,
+    blurRadius:$('blurR').value,
+    bgSubtraction:$('bgSubChk').checked,
+    invert:$('invertChk').checked,
+    minSize:$('minSz').value, maxSize:$('maxSz').value,
+    minCircularity:$('minCircV').textContent,
+    minSolidity:$('minSolV').textContent,
+    maxEccentricity:$('maxEccV').textContent,
+    borderReject:$('borderRej').checked,
+    watershed:$('wsChk').checked,
+    wsH:$('wsHV').textContent, wsPeakDist:$('wsPDV').textContent,
+    edgeMarginPct:$('edgeMargin').value,
+    roiUsed:!!(roi&&$('useROI').checked),
+    roiCx:roi?Math.round(roi.cx):'',roiCy:roi?Math.round(roi.cy):'',roiR:roi?Math.round(roi.r):'',
+    imageWidth:imgW,imageHeight:imgH
+  };
+}
+
+// =================================================================
+//  EXPORTS
+// =================================================================
+function exportSummaryCSV(){
+  if(!samples.length)return;
+  const h=['Sample','Filename','Timestamp','Auto_Accepted','Ambiguous','Manual_Added','Removed','Rejected','Total',
+    'Calibration_um_px','ThreshMethod','ThreshValue','AdaptWin','AdaptOff','BlurR','BgSub','Invert',
+    'MinSize','MaxSize','MinCirc','MinSol','MaxEcc','BorderReject','Watershed','WS_h','WS_PeakDist',
+    'EdgeMarginPct','ROI_Used','ROI_Cx','ROI_Cy','ROI_R','ImgW','ImgH','QC_Flags'];
+  let csv=h.join(',')+'\n';
+  for(const s of samples){const st=s.settings;csv+=[
+    q(s.name),q(s.filename),s.timestamp,s.auto,s.ambiguous,s.manual,s.removed,s.rejected,s.total,
+    s.calibration||'',st.thresholdMethod,st.thresholdValue,st.adaptiveWindowSize,st.adaptiveOffset,
+    st.blurRadius,st.bgSubtraction,st.invert,st.minSize,st.maxSize,st.minCircularity,st.minSolidity,
+    st.maxEccentricity,st.borderReject,st.watershed,st.wsH,st.wsPeakDist,st.edgeMarginPct,
+    st.roiUsed,st.roiCx,st.roiCy,st.roiR,st.imageWidth,st.imageHeight,q(s.qcFlags)
+  ].join(',')+'\n'}
+  dl(csv,'colony_summary_'+ds()+'.csv','text/csv');toast('Summary CSV exported');
+}
+
+function exportDetailCSV(){
+  if(!samples.length)return;
+  const h=['Sample','Colony_ID','Source','Status','X','Y','Area_px','Perimeter','Circularity','Solidity','Eccentricity','Mean_Intensity','Border_Dist','Confidence','Reason_Codes'];
+  let csv=h.join(',')+'\n';
+  for(const s of samples)for(const c of s.colonies){
+    csv+=[q(s.name),c.id,c.source,c.status||'accepted',c.x,c.y,c.area,c.perimeter||0,
+      (c.circularity||0).toFixed(3),(c.solidity||0).toFixed(3),(c.eccentricity||0).toFixed(3),
+      (c.meanIntensity||0).toFixed(1),c.borderDist!=null?Math.round(c.borderDist):'',
+      (c.confidence||1).toFixed(2),q((c.reasons||[]).join(';'))
+    ].join(',')+'\n';
+  }
+  dl(csv,'colony_details_'+ds()+'.csv','text/csv');toast('Detail CSV exported');
+}
+
+function exportSessionJSON(){
+  if(!samples.length)return;
+  const session={
+    appVersion:'ColonyCounter v4.1.0',
+    exportTimestamp:new Date().toISOString(),
+    samples:samples.map(s=>({
+      name:s.name,filename:s.filename,timestamp:s.timestamp,
+      counts:{auto:s.auto,ambiguous:s.ambiguous,manual:s.manual,removed:s.removed,rejected:s.rejected,total:s.total},
+      calibration:s.calibration,
+      settings:s.settings,
+      qcFlags:s.qcFlags,
+      removedIds:s.removedIds,
+      colonies:s.colonies.map(c=>({id:c.id,source:c.source,status:c.status||'accepted',x:c.x,y:c.y,
+        area:c.area,perimeter:c.perimeter||0,circularity:+(c.circularity||0).toFixed(3),
+        solidity:+(c.solidity||0).toFixed(3),eccentricity:+(c.eccentricity||0).toFixed(3),
+        meanIntensity:+(c.meanIntensity||0).toFixed(1),borderDist:c.borderDist!=null?Math.round(c.borderDist):null,
+        confidence:+(c.confidence||1).toFixed(2),reasons:c.reasons||[]}))
+    }))
+  };
+  dl(JSON.stringify(session,null,2),'colony_session_'+ds()+'.json','application/json');toast('Session JSON exported');
+}
+
+// =================================================================
+//  PRESETS
+// =================================================================
+function exportPreset(){
+  const p=getSettings();
+  dl(JSON.stringify(p,null,2),'colony_preset_'+ds()+'.json','application/json');toast('Preset exported');
+}
+$('presetFileIn').addEventListener('change',e=>{
+  if(!e.target.files.length)return;
+  const r=new FileReader();
+  r.onload=ev=>{
+    try{
+      const p=JSON.parse(ev.target.result);
+      if(p.thresholdMethod)$('threshMethod').value=p.thresholdMethod;
+      if(p.thresholdValue){$('threshVal').value=p.thresholdValue;$('threshValV').textContent=p.thresholdValue}
+      if(p.blurRadius){$('blurR').value=p.blurRadius;$('blurRV').textContent=p.blurRadius}
+      if(p.minSize){$('minSz').value=p.minSize;$('minSzV').textContent=p.minSize}
+      if(p.maxSize){$('maxSz').value=p.maxSize;$('maxSzV').textContent=p.maxSize}
+      if(p.minCircularity){const v=Math.round(parseFloat(p.minCircularity)*100);$('minCirc').value=v;$('minCircV').textContent=p.minCircularity}
+      if(p.minSolidity){const v=Math.round(parseFloat(p.minSolidity)*100);$('minSol').value=v;$('minSolV').textContent=p.minSolidity}
+      if(p.maxEccentricity){const v=Math.round(parseFloat(p.maxEccentricity)*100);$('maxEcc').value=v;$('maxEccV').textContent=p.maxEccentricity}
+      if(p.invert!=null)$('invertChk').checked=p.invert;
+      if(p.bgSubtraction!=null)$('bgSubChk').checked=p.bgSubtraction;
+      if(p.watershed!=null)$('wsChk').checked=p.watershed;
+      if(p.borderReject!=null)$('borderRej').checked=p.borderReject;
+      if(p.adaptiveWindowSize){$('adaptWin').value=p.adaptiveWindowSize;$('adaptWinV').textContent=p.adaptiveWindowSize}
+      if(p.adaptiveOffset){$('adaptOff').value=p.adaptiveOffset;$('adaptOffV').textContent=p.adaptiveOffset}
+      if(p.edgeMarginPct){$('edgeMargin').value=p.edgeMarginPct;$('edgeMarginV').textContent=p.edgeMarginPct}
+      $('threshMethod').dispatchEvent(new Event('change'));
+      toast('Preset loaded');
+    }catch(err){toast('Invalid preset file')}
+  };
+  r.readAsText(e.target.files[0]);
+});
+
+// =================================================================
+//  BEFORE/AFTER COMPARISON
+// =================================================================
+let _cmpActive=false;
+function updateCompare(){
+  const mode=$('cmpMode').value;
+  _cmpActive=mode!=='off';
+  $('compareBar').classList.toggle('active',true); // always show bar when toolbar visible
+  if(_cmpActive)renderCompare();else render();
+}
+function renderCompare(){
+  if(!origImg||!_cmpActive)return;
+  const pct=parseInt($('cmpSlider').value)/100;
+  $('cmpPct').textContent=Math.round(pct*100)+'%';
+  const mode=$('cmpMode').value;
+  // Draw left side
+  X.clearRect(0,0,imgW,imgH);
+  X.save();
+  // Left half (up to split line)
+  const splitX=Math.round(imgW*pct);
+  X.beginPath();X.rect(0,0,splitX,imgH);X.clip();
+  if(mode==='orig_mask'||mode==='orig_accrej')X.drawImage(origImg,0,0);
+  else if(mode==='mask_accrej'&&binMask)drawMaskOv();
+  X.restore();
+  // Right half
+  X.save();
+  X.beginPath();X.rect(splitX,0,imgW-splitX,imgH);X.clip();
+  if(mode==='orig_mask'&&binMask)drawMaskOv();
+  else if(mode==='mask_accrej')drawAccRejOv();
+  else if(mode==='orig_accrej'){drawAccRejOv();_drawOverlayMarkers()}
+  X.restore();
+  // Split line
+  X.strokeStyle='#fff';X.lineWidth=2;X.setLineDash([]);
+  X.beginPath();X.moveTo(splitX,0);X.lineTo(splitX,imgH);X.stroke();
+  // Triangles at top/bottom
+  X.fillStyle='rgba(255,255,255,.8)';
+  X.beginPath();X.moveTo(splitX-6,0);X.lineTo(splitX+6,0);X.lineTo(splitX,8);X.fill();
+  X.beginPath();X.moveTo(splitX-6,imgH);X.lineTo(splitX+6,imgH);X.lineTo(splitX,imgH-8);X.fill();
+}
+function _drawOverlayMarkers(){
+  // Draw colony markers (accepted + ambiguous + manual) for comparison right side
+  const lw=Math.max(1.5,imgW/500);
+  X.strokeStyle=cssVar('--green');X.lineWidth=lw;X.setLineDash([]);
+  for(const o of allObjects){
+    if(o.status!=='accepted'||removedAuto.includes(o.id))continue;
+    const r=Math.max(5,Math.sqrt(o.area/Math.PI));
+    X.beginPath();X.arc(o.x,o.y,r,0,Math.PI*2);X.stroke();
+  }
+  X.setLineDash([2,3]);X.strokeStyle=cssVar('--amber');
+  for(const o of allObjects){
+    if(o.status!=='ambiguous'||removedAuto.includes(o.id))continue;
+    const r=Math.max(5,Math.sqrt(o.area/Math.PI));
+    X.beginPath();X.arc(o.x,o.y,r,0,Math.PI*2);X.stroke();
+  }
+  X.setLineDash([]);
+}
+
+// =================================================================
+//  OBJECT LIST
+// =================================================================
+function renderObjectList(){
+  const el=$('objList');
+  if(!allObjects.length){$('objListPanel').style.display='none';return}
+  $('objListPanel').style.display='block';
+  $('objListBadge').textContent=allObjects.length;
+  const groups={accepted:[],ambiguous:[],rejected:[]};
+  for(const o of allObjects){(groups[o.status]||groups.rejected).push(o)}
+  let html='';
+  const colors={accepted:'var(--green)',ambiguous:'var(--amber)',rejected:'var(--gray-slate)'};
+  const labels={accepted:'Accepted',ambiguous:'Ambiguous',rejected:'Rejected'};
+  for(const st of ['accepted','ambiguous','rejected']){
+    const arr=groups[st];if(!arr.length)continue;
+    html+='<details class="obj-list-group"'+(st==='accepted'?' open':'')+'><summary>'+labels[st]+' <span class="olg-count">('+arr.length+')</span></summary>';
+    for(const o of arr){
+      const sel=inspectedId===o.id?' selected':'';
+      html+='<div class="obj-row'+sel+'" onclick="inspectObject('+o.id+')">'+
+        '<span class="or-dot" style="background:'+colors[st]+'"></span>'+
+        '<span class="or-id">#'+o.id+'</span>'+
+        '<span style="flex:1">'+Math.round(o.x)+','+Math.round(o.y)+'</span>'+
+        '<span class="or-area">'+o.area+'px</span>'+
+        '<span class="or-conf" style="color:'+(o.confidence<0.4?'var(--amber)':'var(--muted)')+'">'+o.confidence.toFixed(2)+'</span></div>';
+    }
+    html+='</details>';
+  }
+  el.innerHTML=html;
+}
+
+// =================================================================
+//  NIBLACK / SAUVOLA THRESHOLDS
+// =================================================================
+function niblackThreshold(src,w,h,winSz,k,invert){
+  // T(x,y) = mean + k * stddev
+  const mask=new Uint8Array(w*h);
+  const hw=winSz>>1;
+  // Integral image + integral of squares
+  const integ=new Float64Array((w+1)*(h+1));
+  const integ2=new Float64Array((w+1)*(h+1));
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+    const v=src[y*w+x];
+    integ[(y+1)*(w+1)+x+1]=v+integ[y*(w+1)+x+1]+integ[(y+1)*(w+1)+x]-integ[y*(w+1)+x];
+    integ2[(y+1)*(w+1)+x+1]=v*v+integ2[y*(w+1)+x+1]+integ2[(y+1)*(w+1)+x]-integ2[y*(w+1)+x];
+  }
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+    const x0=Math.max(0,x-hw),y0=Math.max(0,y-hw),x1=Math.min(w,x+hw+1),y1=Math.min(h,y+hw+1);
+    const area2=(x1-x0)*(y1-y0);
+    const sum=integ[y1*(w+1)+x1]-integ[y0*(w+1)+x1]-integ[y1*(w+1)+x0]+integ[y0*(w+1)+x0];
+    const sum2=integ2[y1*(w+1)+x1]-integ2[y0*(w+1)+x1]-integ2[y1*(w+1)+x0]+integ2[y0*(w+1)+x0];
+    const mean=sum/area2;
+    const variance=sum2/area2-mean*mean;
+    const std=Math.sqrt(Math.max(0,variance));
+    const thr=mean+k*std;
+    mask[y*w+x]=invert?(src[y*w+x]<thr?1:0):(src[y*w+x]>=thr?1:0);
+  }
+  return mask;
+}
+function sauvolaThreshold(src,w,h,winSz,k,R,invert){
+  // T(x,y) = mean * (1 + k * (stddev/R - 1))
+  const mask=new Uint8Array(w*h);
+  const hw=winSz>>1;
+  const integ=new Float64Array((w+1)*(h+1));
+  const integ2=new Float64Array((w+1)*(h+1));
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+    const v=src[y*w+x];
+    integ[(y+1)*(w+1)+x+1]=v+integ[y*(w+1)+x+1]+integ[(y+1)*(w+1)+x]-integ[y*(w+1)+x];
+    integ2[(y+1)*(w+1)+x+1]=v*v+integ2[y*(w+1)+x+1]+integ2[(y+1)*(w+1)+x]-integ2[y*(w+1)+x];
+  }
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+    const x0=Math.max(0,x-hw),y0=Math.max(0,y-hw),x1=Math.min(w,x+hw+1),y1=Math.min(h,y+hw+1);
+    const area2=(x1-x0)*(y1-y0);
+    const sum=integ[y1*(w+1)+x1]-integ[y0*(w+1)+x1]-integ[y1*(w+1)+x0]+integ[y0*(w+1)+x0];
+    const sum2=integ2[y1*(w+1)+x1]-integ2[y0*(w+1)+x1]-integ2[y1*(w+1)+x0]+integ2[y0*(w+1)+x0];
+    const mean=sum/area2;
+    const variance=sum2/area2-mean*mean;
+    const std=Math.sqrt(Math.max(0,variance));
+    const thr=mean*(1+k*(std/R-1));
+    mask[y*w+x]=invert?(src[y*w+x]<thr?1:0):(src[y*w+x]>=thr?1:0);
+  }
+  return mask;
+}
+
+// =================================================================
+//  THRESHOLD STABILITY CHART
+// =================================================================
+function updateStabilityChart(){
+  if(!bgSubD&&!blurD)return;
+  const src=bgSubD||blurD;
+  const inv=$('invertChk').checked;
+  const useR=$('useROI').checked&&roi;
+  const em2=parseInt($('edgeMargin').value)/100;
+  // Quick Otsu-based sweep: count at threshold ±20 around current
+  const method=$('threshMethod').value;
+  if(method==='adaptive'||method==='niblack'||method==='sauvola'){
+    $('stabChart').style.display='none';$('stabLabel').style.display='none';return;
+  }
+  $('stabChart').style.display='block';$('stabLabel').style.display='block';
+  const curT=parseInt($('threshVal').value);
+  const counts=[];const tRange=40;const step=2;
+  for(let t=Math.max(1,curT-tRange);t<=Math.min(255,curT+tRange);t+=step){
+    let cnt=0;
+    for(let i=0;i<imgW*imgH;i++){
+      if(useR){const x=i%imgW,y=(i-x)/imgW;if(Math.hypot(x-roi.cx,y-roi.cy)>roi.r*(1-em2))continue}
+      if(inv?(src[i]<t):(src[i]>=t))cnt++;
+    }
+    counts.push({t,cnt});
+  }
+  // Draw mini chart
+  const cv=$('stabCanvas'),ctx2=cv.getContext('2d');
+  const cw=cv.parentElement.clientWidth||200,ch=50;
+  cv.width=cw;cv.height=ch;ctx2.clearRect(0,0,cw,ch);
+  if(!counts.length)return;
+  const maxC=Math.max(...counts.map(c=>c.cnt))||1;
+  const barW=cw/counts.length;
+  for(let i=0;i<counts.length;i++){
+    const h2=counts[i].cnt/maxC*ch;
+    const isCur=Math.abs(counts[i].t-curT)<=step;
+    ctx2.fillStyle=isCur?'#2563eb':'#cbd5e1';
+    ctx2.fillRect(i*barW,ch-h2,Math.max(1,barW-1),h2);
+  }
+  // Stability metric: derivative near current threshold
+  const curIdx=counts.findIndex(c=>Math.abs(c.t-curT)<=step);
+  if(curIdx>0&&curIdx<counts.length-1){
+    const dLeft=Math.abs(counts[curIdx].cnt-counts[curIdx-1].cnt);
+    const dRight=Math.abs(counts[curIdx].cnt-counts[curIdx+1].cnt);
+    const avgDelta=(dLeft+dRight)/2;
+    const pct=counts[curIdx].cnt>0?avgDelta/counts[curIdx].cnt*100:0;
+    const label=pct<2?'Stable':'Sensitive — small changes cause '+pct.toFixed(1)+'% count change';
+    $('stabLabel').textContent=label;
+    $('stabLabel').style.color=pct<2?'#166534':pct<10?'#92400e':'#991b1b';
+  }
+}
+
+// =================================================================
+//  PIPELINE CACHING + DEPENDENCY-AWARE RECOMPUTE
+// =================================================================
+let _pipelineCache={grayHash:null,blurHash:null,bgHash:null,threshHash:null};
+function _hashParams(...args){return args.join('|')}
+
+// =================================================================
+//  LIVE SLIDER FEEDBACK (recompute on slider release)
+// =================================================================
+function _setupLiveSliders(){
+  // Filter sliders: only re-filter (skip preprocess/threshold/label)
+  const filterIds=['minSz','maxSz','minCirc','minSol','maxEcc','edgeMargin'];
+  for(const sid of filterIds){
+    $(sid).addEventListener('change',()=>{
+      if(!allObjects.length)return;
+      reapplyFilters();
+    });
+  }
+}
+function reapplyFilters(){
+  // Re-filter existing allObjects without re-running full pipeline
+  const minSize=parseInt($('minSz').value),maxSize=parseInt($('maxSz').value);
+  const minCircV=parseInt($('minCirc').value)/100;
+  const minSolV=parseInt($('minSol').value)/100;
+  const maxEccV=parseInt($('maxEcc').value)/100;
+  const borderRej=$('borderRej').checked;
+  const useR=$('useROI').checked&&roi;
+  const em2=parseInt($('edgeMargin').value)/100;
+
+  // Save previous for delta
+  const prevAcc=allObjects.filter(o=>o.status==='accepted'||o.status==='ambiguous').map(o=>({id:o.id,x:o.x,y:o.y,area:o.area}));
+
+  for(const obj of allObjects){
+    obj.status='accepted';obj.reasons=[];
+    if(obj.area<minSize){obj.status='rejected';obj.reasons.push('REJ_SIZE_MIN')}
+    if(obj.area>maxSize){obj.status='rejected';obj.reasons.push('REJ_SIZE_MAX')}
+    if(obj.circularity<minCircV){obj.status='rejected';obj.reasons.push('REJ_CIRC_MIN')}
+    if(obj.solidity<minSolV){obj.status='rejected';obj.reasons.push('REJ_SOL_MIN')}
+    if(obj.eccentricity>maxEccV){obj.status='rejected';obj.reasons.push('REJ_ECC_MAX')}
+    if(borderRej&&useR&&obj.borderDist!=null&&obj.borderDist<Math.sqrt(obj.area/Math.PI)){
+      obj.status='rejected';obj.reasons.push('REJ_BORDER_TOUCH');
+    }
+    // Recompute confidence
+    let conf=1;
+    if(obj.area>0){const range=maxSize-minSize;if(range>0){const dm=(obj.area-minSize)/range,dM=(maxSize-obj.area)/range;conf*=Math.min(1,Math.min(dm,dM)*5+0.5)}}
+    if(minCircV>0&&obj.circularity>0)conf*=Math.min(1,(obj.circularity-minCircV)/0.3+0.5);
+    if(minSolV>0&&obj.solidity>0)conf*=Math.min(1,(obj.solidity-minSolV)/0.3+0.5);
+    if(maxEccV<1&&obj.eccentricity>0)conf*=Math.min(1,(maxEccV-obj.eccentricity)/0.3+0.5);
+    obj.confidence=Math.max(0,Math.min(1,conf));
+    if(obj.status==='accepted'&&obj.confidence<0.4){obj.status='ambiguous';obj.reasons.push('LOW_CONFIDENCE')}
+  }
+
+  // Delta highlights
+  const curAcc=allObjects.filter(o=>o.status==='accepted'||o.status==='ambiguous');
+  deltaNewIds=new Set();deltaLostIds=new Set();
+  const matchDist=Math.max(15,imgW/50);
+  const matchedPrev=new Set();
+  for(const cur of curAcc){
+    let found=false;
+    for(const prev of prevAcc){if(matchedPrev.has(prev.id))continue;if(cur.id===prev.id){found=true;matchedPrev.add(prev.id);break}}
+    if(!found)deltaNewIds.add(cur.id);
+  }
+  for(const prev of prevAcc){if(!matchedPrev.has(prev.id))deltaLostIds.add(prev.id)}
+  deltaFadeStart=performance.now();
+  window._deltaLost=prevAcc.filter(p=>deltaLostIds.has(p.id));
+
+  render();updateCounts();updateQCFlags();renderObjectList();
+  if(deltaNewIds.size||deltaLostIds.size){
+    const fadeTick=()=>{const age=performance.now()-deltaFadeStart;if(age<1500){render();requestAnimationFrame(fadeTick)}else{deltaNewIds.clear();deltaLostIds.clear();render()}};requestAnimationFrame(fadeTick);
+  }
+}
+_setupLiveSliders();
+
+// =================================================================
+//  BATCH / 6-WELL PLATE
+// =================================================================
+function switchTab(tab){
+  activeTab=tab;
+  $('tabSingle').classList.toggle('active',tab==='single');
+  $('tabBatch').classList.toggle('active',tab==='batch');
+  $('panelSingle').classList.toggle('active',tab==='single');
+  $('panelBatch').classList.toggle('active',tab==='batch');
+}
+function setBatchMode(m){
+  batchImageMode=m;
+  $('bmIndiv').classList.toggle('active',m==='individual');
+  $('bmPlate').classList.toggle('active',m==='plate');
+  $('wellDetectGroup').style.display=m==='plate'?'block':'none';
+  updateBatchUI();
+}
+
+// --- Batch file upload ---
+(function(){
+  const ba=$('batchUploadArea'),fi=$('batchFileInput');
+  ba.addEventListener('click',()=>fi.click());
+  ba.addEventListener('dragover',e=>{e.preventDefault();ba.classList.add('dragover')});
+  ba.addEventListener('dragleave',()=>ba.classList.remove('dragover'));
+  ba.addEventListener('drop',e=>{e.preventDefault();ba.classList.remove('dragover');if(e.dataTransfer.files.length)addBatchFiles(e.dataTransfer.files)});
+  fi.addEventListener('change',e=>{if(e.target.files.length)addBatchFiles(e.target.files)});
+})();
+
+function addBatchFiles(files){
+  for(const f of files){
+    if(!f.type.startsWith('image/'))continue;
+    const entry={file:f,img:null,w:0,h:0,result:null};
+    batchFiles.push(entry);
+    const img=new Image();
+    img.onload=function(){entry.img=img;entry.w=img.naturalWidth;entry.h=img.naturalHeight;updateBatchUI()};
+    img.src=URL.createObjectURL(f);
+  }
+  updateBatchUI();
+}
+function removeBatchFile(i){
+  if(batchFiles[i]&&batchFiles[i].img)URL.revokeObjectURL(batchFiles[i].img.src);
+  batchFiles.splice(i,1);batchWellTemplate=null;
+  updateBatchUI();
+}
+function updateBatchUI(){
+  const el=$('batchFileList');el.innerHTML='';
+  for(let i=0;i<batchFiles.length;i++){
+    const f=batchFiles[i],d=document.createElement('div');d.className='batch-file';
+    const st=f.result?'done':f.img?'pending':'pending';
+    d.innerHTML='<span class="bf-name" title="'+esc(f.file.name)+'">'+esc(f.file.name)+'</span>'+
+      (f.result?'<span class="bf-status bf-done">'+f.result.totalAccepted+'</span>':'<span class="bf-status bf-'+st+'">'+(f.img?'Ready':'Loading')+'</span>')+
+      '<button class="bf-remove" onclick="removeBatchFile('+i+')">&times;</button>';
+    el.appendChild(d);
+  }
+  const ready=batchFiles.length>0&&batchFiles.every(f=>f.img);
+  $('batchRunBtn').disabled=!ready||batchProcessing;
+  $('detectWellsBtn').disabled=!ready||batchProcessing;
+  const hasResults=batchFiles.some(f=>f.result);
+  $('batchExpSumBtn').disabled=!hasResults;
+  $('batchExpDetBtn').disabled=!hasResults;
+  if(hasResults)renderBatchResults();
+}
+
+// --- 6-Well Plate Detection ---
+// Detect 6 circular wells in an image using gradient-based circle Hough transform
+function detectWells(img,w,h){
+  // Draw image to offscreen canvas, get pixel data
+  const oc=document.createElement('canvas');oc.width=w;oc.height=h;
+  const ox=oc.getContext('2d');ox.drawImage(img,0,0);
+  const id=ox.getImageData(0,0,w,h).data;
+  // Grayscale
+  const gray=new Float32Array(w*h);
+  for(let i=0;i<w*h;i++)gray[i]=0.299*id[i*4]+0.587*id[i*4+1]+0.114*id[i*4+2];
+  // Gaussian blur (sigma~3)
+  const blurred=gaussBlur1D(gray,w,h,3);
+  // Sobel gradient magnitude
+  const grad=new Float32Array(w*h);
+  for(let y=1;y<h-1;y++)for(let x=1;x<w-1;x++){
+    const gx=-blurred[(y-1)*w+x-1]+blurred[(y-1)*w+x+1]-2*blurred[y*w+x-1]+2*blurred[y*w+x+1]-blurred[(y+1)*w+x-1]+blurred[(y+1)*w+x+1];
+    const gy=-blurred[(y-1)*w+x-1]-2*blurred[(y-1)*w+x]+blurred[(y+1)*w+x-1]+2*blurred[(y+1)*w+x]+blurred[(y+1)*w+x+1]-blurred[(y-1)*w+x+1];
+    grad[y*w+x]=Math.sqrt(gx*gx+gy*gy);
+  }
+  // Threshold gradient for edge pixels
+  let gMax=0;for(let i=0;i<grad.length;i++)if(grad[i]>gMax)gMax=grad[i];
+  const gThresh=gMax*0.15;
+  const edgePx=[];
+  // Subsample edges for speed
+  for(let y=2;y<h-2;y+=2)for(let x=2;x<w-2;x+=2)if(grad[y*w+x]>gThresh)edgePx.push({x,y});
+
+  // Expected well radius range: each well is ~1/4 to 1/3 of image width
+  const minR=Math.round(w*0.08), maxR=Math.round(w*0.25);
+  const rStep=Math.max(1,Math.round((maxR-minR)/30));
+  // Accumulator: coarse grid
+  const cellSz=Math.max(4,Math.round(w/200));
+  const aw=Math.ceil(w/cellSz),ah=Math.ceil(h/cellSz),ar=Math.ceil((maxR-minR)/rStep)+1;
+  const acc=new Int32Array(aw*ah*ar);
+  for(const p of edgePx){
+    for(let ri=0;ri<ar;ri++){
+      const r=minR+ri*rStep;
+      // Vote for 8 directions
+      for(let a=0;a<8;a++){
+        const ang=a*Math.PI/4;
+        const cx2=Math.round((p.x+r*Math.cos(ang))/cellSz);
+        const cy2=Math.round((p.y+r*Math.sin(ang))/cellSz);
+        if(cx2>=0&&cx2<aw&&cy2>=0&&cy2<ah)acc[(cy2*aw+cx2)*ar+ri]++;
+      }
+    }
+  }
+  // Find peaks in accumulator
+  const peaks=[];
+  for(let cy2=1;cy2<ah-1;cy2++)for(let cx2=1;cx2<aw-1;cx2++)for(let ri=0;ri<ar;ri++){
+    const v=acc[(cy2*aw+cx2)*ar+ri];
+    if(v<edgePx.length*0.008)continue; // min votes
+    let isMax=true;
+    for(let dy=-1;dy<=1&&isMax;dy++)for(let dx=-1;dx<=1&&isMax;dx++){
+      if(!dy&&!dx)continue;
+      const ny=cy2+dy,nx=cx2+dx;
+      if(ny>=0&&ny<ah&&nx>=0&&nx<aw&&acc[(ny*aw+nx)*ar+ri]>v)isMax=false;
+    }
+    if(isMax)peaks.push({cx:cx2*cellSz+cellSz/2,cy:cy2*cellSz+cellSz/2,r:minR+ri*rStep,votes:v});
+  }
+  peaks.sort((a,b)=>b.votes-a.votes);
+  // Non-maximum suppression: keep peaks separated by > minR
+  const kept=[];
+  for(const p of peaks){
+    let ok=true;
+    for(const k of kept)if(Math.hypot(p.cx-k.cx,p.cy-k.cy)<minR){ok=false;break}
+    if(ok)kept.push(p);
+    if(kept.length>=6)break;
+  }
+  if(kept.length<6){
+    // Fallback: assume regular 2×3 grid based on image dimensions
+    return fallbackWellGrid(w,h);
+  }
+  // Sort into 2×3 grid: top row (3) + bottom row (3) by y then x
+  kept.sort((a,b)=>a.cy-b.cy);
+  const topRow=kept.slice(0,3).sort((a,b)=>a.cx-b.cx);
+  const botRow=kept.slice(3,6).sort((a,b)=>a.cx-b.cx);
+  const labels=['A1','A2','A3','B1','B2','B3'];
+  const wells=[...topRow,...botRow].map((w2,i)=>({cx:Math.round(w2.cx),cy:Math.round(w2.cy),r:Math.round(w2.r),label:labels[i]}));
+  // Unify radius: use median
+  const radii=wells.map(w2=>w2.r).sort((a,b)=>a-b);
+  const medR=radii[2];
+  wells.forEach(w2=>w2.r=medR);
+  return wells;
+}
+function fallbackWellGrid(w,h){
+  // Assume standard 2×3 layout with margins
+  const labels=['A1','A2','A3','B1','B2','B3'];
+  const r=Math.round(Math.min(w/8,h/6));
+  const wells=[];
+  for(let row=0;row<2;row++)for(let col=0;col<3;col++){
+    wells.push({cx:Math.round(w*(col+1)/4),cy:Math.round(h*(row+1)/3),r,label:labels[row*3+col]});
+  }
+  return wells;
+}
+function gaussBlur1D(src,w,h,sigma){
+  const ks=Math.ceil(sigma*3)|1,half=ks>>1;
+  const kern=new Float32Array(ks*2+1);
+  let sum=0;for(let i=-ks;i<=ks;i++){kern[i+ks]=Math.exp(-i*i/(2*sigma*sigma));sum+=kern[i+ks]}
+  for(let i=0;i<kern.length;i++)kern[i]/=sum;
+  const tmp=new Float32Array(w*h),out=new Float32Array(w*h);
+  // Horizontal
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){let s=0;for(let k=-ks;k<=ks;k++){const xx=Math.min(w-1,Math.max(0,x+k));s+=src[y*w+xx]*kern[k+ks]}tmp[y*w+x]=s}
+  // Vertical
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){let s=0;for(let k=-ks;k<=ks;k++){const yy=Math.min(h-1,Math.max(0,y+k));s+=tmp[yy*w+x]*kern[k+ks]}out[y*w+x]=s}
+  return out;
+}
+
+function runWellDetection(){
+  if(!batchFiles.length||!batchFiles[0].img)return;
+  const f=batchFiles[0];
+  const wells=detectWells(f.img,f.w,f.h);
+  batchWellTemplate=wells;
+  // Show well grid preview
+  renderWellGrid(wells,null);
+  // Show wells on canvas
+  showWellPreview(f.img,f.w,f.h,wells);
+  toast('Detected '+wells.length+' wells');
+}
+function renderWellGrid(wells,results){
+  const el=$('wellGrid');el.innerHTML='';el.style.display='grid';
+  for(let i=0;i<6;i++){
+    const w2=wells[i];
+    const d=document.createElement('div');d.className='well-card'+(w2?'':' wc-empty');
+    const res=results?results[i]:null;
+    d.innerHTML='<div class="wc-label">'+(w2?w2.label:'?')+'</div>'+
+      '<div class="wc-count">'+(res!=null?res.totalAccepted:'-')+'</div>'+
+      '<div class="wc-sub">'+(res?'acc:'+res.accepted+' rej:'+res.rejected:'')+'</div>';
+    el.appendChild(d);
+  }
+}
+function showWellPreview(img,w,h,wells){
+  // Show detected wells on main canvas
+  C.width=w;C.height=h;imgW=w;imgH=h;
+  X.drawImage(img,0,0);
+  X.lineWidth=Math.max(2,w/300);X.font=Math.max(14,w/40)+'px sans-serif';X.textAlign='center';X.textBaseline='middle';
+  for(const wl of wells){
+    X.strokeStyle='#38bdf8';X.setLineDash([8,5]);
+    X.beginPath();X.arc(wl.cx,wl.cy,wl.r,0,Math.PI*2);X.stroke();
+    X.setLineDash([]);
+    X.fillStyle='rgba(56,189,248,.25)';X.beginPath();X.arc(wl.cx,wl.cy,wl.r,0,Math.PI*2);X.fill();
+    X.fillStyle='#fff';X.strokeStyle='#000';X.lineWidth=3;
+    X.strokeText(wl.label,wl.cx,wl.cy);X.fillText(wl.label,wl.cx,wl.cy);
+  }
+  $('canvasContainer').style.display='block';zoomFit();
+}
+
+// --- Batch Processing Engine ---
+function getDetectionSettings(){
+  return {
+    blurRadius:parseInt($('blurR').value),
+    threshMeth:$('threshMethod').value,
+    threshManual:parseInt($('threshVal').value),
+    adaptW:parseInt($('adaptWin').value),adaptO:parseInt($('adaptOff').value),
+    minSize:parseInt($('minSz').value),maxSize:parseInt($('maxSz').value),
+    minCircV:parseInt($('minCirc').value)/100,
+    minSolV:parseInt($('minSol').value)/100,
+    maxEccV:parseInt($('maxEcc').value)/100,
+    invert:$('invertChk').checked,
+    doBgSub:$('bgSubChk').checked,
+    doWS:$('wsChk').checked,
+    borderRej:$('borderRej').checked,
+    hFrac:parseInt($('wsH').value)/100,
+    peakDistFrac:parseInt($('wsPD').value)/100,
+    edgeMarginPct:parseInt($('edgeMargin').value)/100
+  };
+}
+
+function startBatchProcessing(){
+  if(batchProcessing||!batchFiles.length)return;
+  if(batchImageMode==='plate'&&!batchWellTemplate){
+    toast('Please detect wells first');return;
+  }
+  batchProcessing=true;
+  $('batchRunBtn').disabled=true;
+  $('batchProgress').classList.add('active');
+  // Clear previous results
+  batchFiles.forEach(f=>f.result=null);
+  const settings=getDetectionSettings();
+  processBatchStep(0,settings);
+}
+
+function processBatchStep(idx,settings){
+  if(idx>=batchFiles.length){
+    // Done
+    batchProcessing=false;
+    $('batchRunBtn').disabled=false;
+    $('bpBar').style.width='100%';
+    $('bpLabel').textContent='Done — '+batchFiles.length+' images processed';
+    updateBatchUI();
+    toast('Batch complete: '+batchFiles.length+' images processed');
+    return;
+  }
+  // Update progress
+  $('bpBar').style.width=Math.round(idx/batchFiles.length*100)+'%';
+  $('bpLabel').textContent='Processing '+(idx+1)+' of '+batchFiles.length+': '+batchFiles[idx].file.name;
+  // Defer to allow UI update
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    try{
+      const f=batchFiles[idx];
+      if(batchImageMode==='plate'&&batchWellTemplate){
+        f.result=processPlateImage(f,settings,batchWellTemplate);
+      }else{
+        f.result=processSingleImage(f,settings);
+      }
+    }catch(e){
+      batchFiles[idx].result={error:e.message,wells:[],totalAccepted:0};
+    }
+    processBatchStep(idx+1,settings);
+  }));
+}
+
+function processSingleImage(f,s){
+  // Run detection pipeline on a single image, return result object
+  const oc=document.createElement('canvas');oc.width=f.w;oc.height=f.h;
+  const ox=oc.getContext('2d',{willReadFrequently:true});
+  ox.drawImage(f.img,0,0);
+  const pd=ox.getImageData(0,0,f.w,f.h).data;
+  return runPipelineOnData(pd,f.w,f.h,s,null);
+}
+
+function processPlateImage(f,s,wells){
+  // For each well: crop to bounding box, run pipeline with circular ROI
+  const oc=document.createElement('canvas');oc.width=f.w;oc.height=f.h;
+  const ox=oc.getContext('2d',{willReadFrequently:true});
+  ox.drawImage(f.img,0,0);
+  const fullPd=ox.getImageData(0,0,f.w,f.h).data;
+  const wellResults=[];
+  let totalAcc=0,totalRej=0;
+  for(const wl of wells){
+    // Extract well region
+    const margin=Math.round(wl.r*0.05);
+    const x0=Math.max(0,wl.cx-wl.r-margin),y0=Math.max(0,wl.cy-wl.r-margin);
+    const x1=Math.min(f.w,wl.cx+wl.r+margin),y1=Math.min(f.h,wl.cy+wl.r+margin);
+    const cw=x1-x0,ch=y1-y0;
+    // Copy pixels
+    const cropPd=new Uint8ClampedArray(cw*ch*4);
+    for(let y=0;y<ch;y++)for(let x=0;x<cw;x++){
+      const si=((y+y0)*f.w+(x+x0))*4, di=(y*cw+x)*4;
+      cropPd[di]=fullPd[si];cropPd[di+1]=fullPd[si+1];cropPd[di+2]=fullPd[si+2];cropPd[di+3]=fullPd[si+3];
+    }
+    // Circular ROI within crop
+    const roiLocal={cx:wl.cx-x0,cy:wl.cy-y0,r:wl.r};
+    const res=runPipelineOnData(cropPd,cw,ch,s,roiLocal);
+    // Offset coordinates back to full image
+    res.allObjects.forEach(o=>{o.x+=x0;o.y+=y0});
+    wellResults.push({label:wl.label,cx:wl.cx,cy:wl.cy,r:wl.r,...res});
+    totalAcc+=res.totalAccepted;totalRej+=res.totalRejected;
+  }
+  return {wells:wellResults,totalAccepted:totalAcc,totalRejected:totalRej};
+}
+
+// Core pipeline that works on raw pixel data (shared by single image and batch)
+function runPipelineOnData(pixelData,w,h,s,circularROI){
+  // 1. Grayscale
+  const gray=new Float32Array(w*h);
+  for(let i=0;i<w*h;i++)gray[i]=s.invert?(255-(0.299*pixelData[i*4]+0.587*pixelData[i*4+1]+0.114*pixelData[i*4+2])):(0.299*pixelData[i*4]+0.587*pixelData[i*4+1]+0.114*pixelData[i*4+2]);
+
+  // 2. Blur
+  let processed=gray;
+  if(s.blurRadius>0){
+    const sigma=s.blurRadius/2;
+    const ks=s.blurRadius,half=ks>>1;
+    const kern=new Float32Array(ks*2+1);let sum=0;
+    for(let i=-ks;i<=ks;i++){kern[i+ks]=Math.exp(-i*i/(2*sigma*sigma));sum+=kern[i+ks]}
+    for(let i=0;i<kern.length;i++)kern[i]/=sum;
+    const tmp=new Float32Array(w*h),out=new Float32Array(w*h);
+    for(let y=0;y<h;y++)for(let x=0;x<w;x++){let v=0;for(let k=-ks;k<=ks;k++){const xx=Math.min(w-1,Math.max(0,x+k));v+=gray[xx+y*w]*kern[k+ks]}tmp[y*w+x]=v}
+    for(let y=0;y<h;y++)for(let x=0;x<w;x++){let v=0;for(let k=-ks;k<=ks;k++){const yy=Math.min(h-1,Math.max(0,y+k));v+=tmp[yy*w+x]*kern[k+ks]}out[y*w+x]=v}
+    processed=out;
+  }
+
+  // 3. Background subtraction (optional)
+  if(s.doBgSub){
+    const ds2=8,sw=Math.ceil(w/ds2),sh=Math.ceil(h/ds2);
+    const small=new Float32Array(sw*sh);
+    for(let y=0;y<sh;y++)for(let x=0;x<sw;x++)small[y*sw+x]=processed[Math.min(h-1,y*ds2)*w+Math.min(w-1,x*ds2)];
+    const bigBlur=gaussBlur1D(small,sw,sh,Math.max(2,sw/4));
+    const bg=new Float32Array(w*h);
+    for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+      const fx=x/ds2,fy=y/ds2;
+      const ix=Math.min(sw-2,Math.floor(fx)),iy=Math.min(sh-2,Math.floor(fy));
+      const dx2=fx-ix,dy2=fy-iy;
+      bg[y*w+x]=bigBlur[iy*sw+ix]*(1-dx2)*(1-dy2)+bigBlur[iy*sw+ix+1]*dx2*(1-dy2)+bigBlur[(iy+1)*sw+ix]*(1-dx2)*dy2+bigBlur[(iy+1)*sw+ix+1]*dx2*dy2;
+    }
+    const sub=new Float32Array(w*h);
+    for(let i=0;i<w*h;i++)sub[i]=Math.max(0,Math.min(255,processed[i]-bg[i]+128));
+    processed=sub;
+  }
+
+  // 4. Thresholding
+  const mask=new Uint8Array(w*h);
+  if(s.threshMeth==='adaptive'){
+    // Integral image
+    const integ=new Float64Array((w+1)*(h+1));
+    for(let y=0;y<h;y++)for(let x=0;x<w;x++)integ[(y+1)*(w+1)+x+1]=processed[y*w+x]+integ[y*(w+1)+x+1]+integ[(y+1)*(w+1)+x]-integ[y*(w+1)+x];
+    const hw=s.adaptW>>1;
+    for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+      const x0=Math.max(0,x-hw),y0=Math.max(0,y-hw),x1=Math.min(w,x+hw+1),y1=Math.min(h,y+hw+1);
+      const area2=(x1-x0)*(y1-y0);
+      const mean=(integ[y1*(w+1)+x1]-integ[y0*(w+1)+x1]-integ[y1*(w+1)+x0]+integ[y0*(w+1)+x0])/area2;
+      mask[y*w+x]=processed[y*w+x]<mean-s.adaptO?1:0;
+    }
+  }else{
+    // Otsu or manual
+    let thr=s.threshManual;
+    if(s.threshMeth==='otsu'){
+      const hist=new Int32Array(256);
+      for(let i=0;i<w*h;i++)hist[Math.round(processed[i])]++;
+      let total=w*h,sumB=0,wB=0,max=0;
+      let totalSum=0;for(let i=0;i<256;i++)totalSum+=i*hist[i];
+      for(let t=0;t<256;t++){
+        wB+=hist[t];if(!wB)continue;const wF=total-wB;if(!wF)break;
+        sumB+=t*hist[t];const mB=sumB/wB,mF=(totalSum-sumB)/wF;
+        const between=wB*wF*(mB-mF)*(mB-mF);
+        if(between>max){max=between;thr=t}
+      }
+    }
+    for(let i=0;i<w*h;i++)mask[i]=processed[i]<thr?1:0;
+  }
+
+  // Apply circular ROI if provided
+  if(circularROI){
+    const cr=circularROI;
+    const effR=cr.r*(1-s.edgeMarginPct);
+    for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+      const d=Math.hypot(x-cr.cx,y-cr.cy);
+      if(d>effR)mask[y*w+x]=0;
+    }
+  }
+
+  // 5. Connected components + features
+  const {objects,labels}=labelAndFeatureBatch(mask,gray,w,h);
+
+  // 6. Watershed splitting
+  const finalObjects=[];
+  for(let ci=0;ci<objects.length;ci++){
+    const comp=objects[ci];
+    if(s.doWS&&comp.pixels>s.minSize*2){
+      const subs=watershedSplitBatch(comp,mask,w,h,s.hFrac,s.peakDistFrac,s.minSize,labels,ci+1);
+      for(const sc of subs){
+        const cx2=Math.round(sc.sumX/sc.pixels),cy2=Math.round(sc.sumY/sc.pixels);
+        const perim=sc.perim||1;const area=sc.pixels;
+        const circ=Math.min(1,4*Math.PI*area/(perim*perim));
+        const hull=convexHullAreaFromBorder(sc.borderPx,w);
+        const sol=hull>0?Math.min(1,area/hull):1;
+        const ecc=calcEccentricity(sc,cx2,cy2);
+        finalObjects.push({id:finalObjects.length,x:cx2,y:cy2,area,perimeter:Math.round(perim),circularity:circ,
+          solidity:sol,eccentricity:ecc,meanIntensity:sc.sumI/sc.pixels,
+          borderDist:circularROI?Math.hypot(cx2-circularROI.cx,cy2-circularROI.cy)-circularROI.r*(1-s.edgeMarginPct):null,
+          status:'accepted',reasons:[],confidence:1,splitFrom:ci,source:'auto'});
+      }
+    }else{
+      const cx2=Math.round(comp.sumX/comp.pixels),cy2=Math.round(comp.sumY/comp.pixels);
+      const perim=comp.perim||1;const area=comp.pixels;
+      const circ=Math.min(1,4*Math.PI*area/(perim*perim));
+      const hull=convexHullAreaFromBorder(comp.borderPx,w);
+      const sol=hull>0?Math.min(1,area/hull):1;
+      const ecc=calcEccentricity(comp,cx2,cy2);
+      finalObjects.push({id:finalObjects.length,x:cx2,y:cy2,area,perimeter:Math.round(perim),circularity:circ,
+        solidity:sol,eccentricity:ecc,meanIntensity:comp.sumI/comp.pixels,
+        borderDist:circularROI?Math.hypot(cx2-circularROI.cx,cy2-circularROI.cy)-circularROI.r*(1-s.edgeMarginPct):null,
+        status:'accepted',reasons:[],confidence:1,splitFrom:null,source:'auto'});
+    }
+  }
+
+  // 7. Filter
+  let accepted=0,rejected=0,ambiguous=0;
+  for(const obj of finalObjects){
+    if(obj.area<s.minSize){obj.status='rejected';obj.reasons.push('REJ_SIZE_MIN')}
+    if(obj.area>s.maxSize){obj.status='rejected';obj.reasons.push('REJ_SIZE_MAX')}
+    if(obj.circularity<s.minCircV){obj.status='rejected';obj.reasons.push('REJ_CIRC_MIN')}
+    if(obj.solidity<s.minSolV){obj.status='rejected';obj.reasons.push('REJ_SOL_MIN')}
+    if(obj.eccentricity>s.maxEccV){obj.status='rejected';obj.reasons.push('REJ_ECC_MAX')}
+    if(s.borderRej&&circularROI&&obj.borderDist!=null&&obj.borderDist>-Math.sqrt(obj.area/Math.PI)){
+      // borderDist is negative (inside circle) measured from edge
+    }
+    // Confidence
+    let conf=1;
+    if(obj.area>0){const range=s.maxSize-s.minSize;if(range>0){const dm=(obj.area-s.minSize)/range,dM=(s.maxSize-obj.area)/range;conf*=Math.min(1,Math.min(dm,dM)*5+0.5)}}
+    if(s.minCircV>0&&obj.circularity>0)conf*=Math.min(1,(obj.circularity-s.minCircV)/0.3+0.5);
+    if(s.minSolV>0&&obj.solidity>0)conf*=Math.min(1,(obj.solidity-s.minSolV)/0.3+0.5);
+    if(s.maxEccV<1&&obj.eccentricity>0)conf*=Math.min(1,(s.maxEccV-obj.eccentricity)/0.3+0.5);
+    obj.confidence=Math.max(0,Math.min(1,conf));
+    if(obj.status==='accepted'&&obj.confidence<0.4){obj.status='ambiguous';obj.reasons.push('LOW_CONFIDENCE')}
+    if(obj.status==='rejected')rejected++;
+    else if(obj.status==='ambiguous')ambiguous++;
+    else accepted++;
+  }
+  return {allObjects:finalObjects,totalAccepted:accepted+ambiguous,accepted,rejected,ambiguous};
+}
+
+// Batch-compatible labeling (standalone, doesn't use globals)
+function labelAndFeatureBatch(mask,grayData,w,h){
+  const labels=new Int32Array(w*h);
+  const objects=[];let numComp=0;
+  const dx8b=[-1,1,0,0,-1,-1,1,1],dy8b=[0,0,-1,1,-1,1,-1,1];
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+    const idx=y*w+x;
+    if(!mask[idx]||labels[idx])continue;
+    numComp++;const label=numComp;
+    const comp={pixels:0,sumX:0,sumY:0,perim:0,borderPx:[],sumI:0,sumXX:0,sumYY:0,sumXY:0};
+    const queue=[idx];let qh2=0;labels[idx]=label;
+    while(qh2<queue.length){
+      const ci=queue[qh2++],cx2=ci%w,cy2=(ci-cx2)/w;
+      comp.pixels++;comp.sumX+=cx2;comp.sumY+=cy2;
+      comp.sumI+=(grayData?grayData[ci]:128);
+      let isBorder=false;let perimContrib=0;
+      for(let d=0;d<8;d++){
+        const nx=cx2+dx8b[d],ny=cy2+dy8b[d];
+        if(nx<0||nx>=w||ny<0||ny>=h){isBorder=true;perimContrib+=(d<4?1.0:0.707);continue}
+        const ni=ny*w+nx;
+        if(mask[ni]&&!labels[ni]){labels[ni]=label;queue.push(ni)}
+        else if(!mask[ni]){isBorder=true;perimContrib+=(d<4?1.0:0.707)}
+      }
+      comp.perim+=perimContrib;
+      if(isBorder)comp.borderPx.push(ci);
+      // Accumulate second moments inline
+      const mx2=cx2,my2=cy2;
+      // (deferred — we compute after centroid is known)
+    }
+    // Second moments
+    const mcx=comp.sumX/comp.pixels,mcy=comp.sumY/comp.pixels;
+    for(let qi=0;qi<queue.length;qi++){
+      const ci=queue[qi],cx3=ci%w,cy3=(ci-cx3)/w;
+      comp.sumXX+=(cx3-mcx)**2;comp.sumYY+=(cy3-mcy)**2;comp.sumXY+=(cx3-mcx)*(cy3-mcy);
+    }
+    objects.push(comp);
+  }
+  return {objects,labels};
+}
+
+// Batch-compatible watershed (standalone)
+function watershedSplitBatch(comp,mask,w,h,hFrac,peakDistFrac,minSz,labels,compLabel){
+  const cx=Math.round(comp.sumX/comp.pixels),cy=Math.round(comp.sumY/comp.pixels);
+  const estR=Math.ceil(Math.sqrt(comp.pixels/Math.PI))+10;
+  const mX=Math.max(0,cx-estR*2),mY=Math.max(0,cy-estR*2);
+  const MX=Math.min(w-1,cx+estR*2),MY=Math.min(h-1,cy+estR*2);
+  const bw=MX-mX+1,bh=MY-mY+1;
+  const lm=new Uint8Array(bw*bh);
+  for(let y=mY;y<=MY;y++)for(let x=mX;x<=MX;x++){if(labels[y*w+x]===compLabel)lm[(y-mY)*bw+(x-mX)]=1}
+  const dist=new Float32Array(bw*bh);
+  for(let y=0;y<bh;y++)for(let x=0;x<bw;x++){
+    const i=y*bw+x;if(!lm[i]){dist[i]=0;continue}let d=1e6;
+    if(y>0)d=Math.min(d,dist[(y-1)*bw+x]+3);if(x>0)d=Math.min(d,dist[y*bw+x-1]+3);
+    if(x>0&&y>0)d=Math.min(d,dist[(y-1)*bw+x-1]+4);if(x<bw-1&&y>0)d=Math.min(d,dist[(y-1)*bw+x+1]+4);
+    dist[i]=d;
+  }
+  for(let y=bh-1;y>=0;y--)for(let x=bw-1;x>=0;x--){
+    const i=y*bw+x;if(!lm[i])continue;
+    if(y<bh-1)dist[i]=Math.min(dist[i],dist[(y+1)*bw+x]+3);if(x<bw-1)dist[i]=Math.min(dist[i],dist[y*bw+x+1]+3);
+    if(x<bw-1&&y<bh-1)dist[i]=Math.min(dist[i],dist[(y+1)*bw+x+1]+4);if(x>0&&y<bh-1)dist[i]=Math.min(dist[i],dist[(y+1)*bw+x-1]+4);
+  }
+  let maxD=0;for(let i=0;i<dist.length;i++)if(dist[i]>maxD)maxD=dist[i];
+  if(maxD<6)return [comp];
+  const hVal=maxD*hFrac;
+  const minPD=Math.sqrt(comp.pixels/Math.PI)*peakDistFrac;
+  const cands=[];
+  for(let y=1;y<bh-1;y++)for(let x=1;x<bw-1;x++){
+    const i=y*bw+x;if(dist[i]<hVal)continue;
+    let isMax=true;
+    for(let dy=-1;dy<=1&&isMax;dy++)for(let dx=-1;dx<=1&&isMax;dx++)if((dy||dx)&&dist[(y+dy)*bw+x+dx]>dist[i])isMax=false;
+    if(isMax)cands.push({gx:x+mX,gy:y+mY,lx:x,ly:y,d:dist[i]});
+  }
+  cands.sort((a,b)=>b.d-a.d);
+  const seeds=[];
+  for(const c of cands){let ok=true;for(const se of seeds)if(Math.hypot(c.gx-se.gx,c.gy-se.gy)<minPD){ok=false;break}if(ok)seeds.push(c)}
+  if(seeds.length<=1)return [comp];
+  // Priority-queue watershed
+  const mm=new Int32Array(bw*bh);
+  const hp2=[];
+  function hp2Up(i){while(i>0){const p=(i-1)>>1;if(hp2[p][0]<=hp2[i][0])break;const t=hp2[p];hp2[p]=hp2[i];hp2[i]=t;i=p}}
+  function hp2Dn(i){const n=hp2.length;while(true){let s2=i;const l=2*i+1,r=2*i+2;if(l<n&&hp2[l][0]<hp2[s2][0])s2=l;if(r<n&&hp2[r][0]<hp2[s2][0])s2=r;if(s2===i)break;const t=hp2[s2];hp2[s2]=hp2[i];hp2[i]=t;i=s2}}
+  function hp2Push(v){hp2.push(v);hp2Up(hp2.length-1)}
+  function hp2Pop(){const top=hp2[0];const last=hp2.pop();if(hp2.length>0){hp2[0]=last;hp2Dn(0)}return top}
+  for(let si=0;si<seeds.length;si++){const s2=seeds[si],li=s2.ly*bw+s2.lx;mm[li]=si+1;hp2Push([-dist[li],li])}
+  while(hp2.length>0){
+    const [,ci]=hp2Pop(),cx2=ci%bw,cy2=(ci-cx2)/bw,m=mm[ci];
+    if(cx2>0&&lm[ci-1]&&!mm[ci-1]){mm[ci-1]=m;hp2Push([-dist[ci-1],ci-1])}
+    if(cx2<bw-1&&lm[ci+1]&&!mm[ci+1]){mm[ci+1]=m;hp2Push([-dist[ci+1],ci+1])}
+    if(cy2>0&&lm[ci-bw]&&!mm[ci-bw]){mm[ci-bw]=m;hp2Push([-dist[ci-bw],ci-bw])}
+    if(cy2<bh-1&&lm[ci+bw]&&!mm[ci+bw]){mm[ci+bw]=m;hp2Push([-dist[ci+bw],ci+bw])}
+  }
+  const dx8b=[-1,1,0,0,-1,-1,1,1],dy8b=[0,0,-1,1,-1,1,-1,1];
+  const scs=[];
+  for(let si=0;si<seeds.length;si++)scs.push({pixels:0,sumX:0,sumY:0,perim:0,borderPx:[],sumI:0,sumXX:0,sumYY:0,sumXY:0});
+  for(let y=0;y<bh;y++)for(let x=0;x<bw;x++){
+    const m=mm[y*bw+x];if(!m)continue;
+    const sc=scs[m-1],gx=x+mX,gy=y+mY;
+    sc.pixels++;sc.sumX+=gx;sc.sumY+=gy;
+    sc.sumI+=(comp.sumI/comp.pixels); // approximate intensity
+    let isBorder=false;let perimContrib=0;
+    for(let d=0;d<8;d++){
+      const nx=x+dx8b[d],ny=y+dy8b[d];
+      if(nx<0||nx>=bw||ny<0||ny>=bh){isBorder=true;perimContrib+=(d<4?1.0:0.707);continue}
+      if(mm[ny*bw+nx]!==m){isBorder=true;perimContrib+=(d<4?1.0:0.707)}
+    }
+    sc.perim+=perimContrib;
+    if(isBorder)sc.borderPx.push(gy*w+gx);
+  }
+  for(const sc of scs){
+    if(!sc.pixels)continue;
+    const mx2=sc.sumX/sc.pixels,my2=sc.sumY/sc.pixels;
+    for(let y=0;y<bh;y++)for(let x=0;x<bw;x++){
+      if(mm[y*bw+x]!==scs.indexOf(sc)+1)continue;
+      const gx=x+mX,gy=y+mY;
+      sc.sumXX+=(gx-mx2)**2;sc.sumYY+=(gy-my2)**2;sc.sumXY+=(gx-mx2)*(gy-my2);
+    }
+  }
+  return scs.filter(c=>c.pixels>0);
+}
+
+// Helper: compute eccentricity from second moments
+function calcEccentricity(comp,cx2,cy2){
+  if(comp.pixels<3)return 0;
+  const a=comp.sumXX/comp.pixels,b=comp.sumXY/comp.pixels,c2=comp.sumYY/comp.pixels;
+  const delta=Math.sqrt((a-c2)**2+4*b*b);
+  const l1=(a+c2+delta)/2,l2=(a+c2-delta)/2;
+  return l1>0?Math.sqrt(1-l2/l1):0;
+}
+
+// Helper: convex hull area from border pixel indices
+function convexHullAreaFromBorder(borderPx,w){
+  if(borderPx.length<3)return 0;
+  const pts=borderPx.map(i=>({x:i%w,y:(i-i%w)/w}));
+  // Graham scan
+  let pivot=pts[0];for(const p of pts)if(p.y<pivot.y||(p.y===pivot.y&&p.x<pivot.x))pivot=p;
+  const sorted=pts.filter(p=>p!==pivot).sort((a,b)=>{
+    const ca=Math.atan2(a.y-pivot.y,a.x-pivot.x),cb=Math.atan2(b.y-pivot.y,b.x-pivot.x);
+    return ca-cb||Math.hypot(a.x-pivot.x,a.y-pivot.y)-Math.hypot(b.x-pivot.x,b.y-pivot.y);
+  });
+  const hull=[pivot];
+  for(const p of sorted){
+    while(hull.length>1){
+      const a2=hull[hull.length-2],b2=hull[hull.length-1];
+      if((b2.x-a2.x)*(p.y-a2.y)-(b2.y-a2.y)*(p.x-a2.x)<=0)hull.pop();else break;
+    }
+    hull.push(p);
+  }
+  let area=0;
+  for(let i=0;i<hull.length;i++){const j=(i+1)%hull.length;area+=hull[i].x*hull[j].y-hull[j].x*hull[i].y}
+  return Math.abs(area)/2;
+}
+
+// --- Batch Results Display ---
+function renderBatchResults(){
+  const el=$('batchResults');el.innerHTML='';
+  if(batchImageMode==='plate'){
+    // Show per-image well grids
+    let html='<table><tr><th>Image</th><th>A1</th><th>A2</th><th>A3</th><th>B1</th><th>B2</th><th>B3</th><th>Total</th></tr>';
+    for(const f of batchFiles){
+      if(!f.result)continue;
+      html+='<tr><td title="'+esc(f.file.name)+'">'+esc(f.file.name.substring(0,20))+'</td>';
+      if(f.result.wells){
+        for(const wl of f.result.wells)html+='<td class="br-count">'+wl.totalAccepted+'</td>';
+      }else{for(let i=0;i<6;i++)html+='<td>-</td>'}
+      html+='<td class="br-count"><strong>'+f.result.totalAccepted+'</strong></td></tr>';
+    }
+    html+='</table>';el.innerHTML=html;
+  }else{
+    // Individual images
+    let html='<table><tr><th>Image</th><th>Accepted</th><th>Ambiguous</th><th>Rejected</th><th>Total</th></tr>';
+    for(const f of batchFiles){
+      if(!f.result)continue;
+      html+='<tr><td title="'+esc(f.file.name)+'">'+esc(f.file.name.substring(0,25))+'</td>'+
+        '<td>'+f.result.accepted+'</td><td>'+f.result.ambiguous+'</td><td>'+f.result.rejected+'</td>'+
+        '<td class="br-count">'+f.result.totalAccepted+'</td></tr>';
+    }
+    html+='</table>';el.innerHTML=html;
+  }
+}
+
+// --- Batch Export ---
+function exportBatchSummaryCSV(){
+  const rows=[['Image','Well','Auto_Accepted','Ambiguous','Rejected','Total',
+    'ThreshMethod','BlurR','MinSize','MaxSize','MinCirc','MinSol','MaxEcc','Watershed'].join(',')];
+  const s=getDetectionSettings();
+  for(const f of batchFiles){
+    if(!f.result)continue;
+    if(f.result.wells&&f.result.wells.length){
+      for(const wl of f.result.wells){
+        rows.push([q(f.file.name),q(wl.label),wl.accepted,wl.ambiguous||0,wl.rejected,wl.totalAccepted,
+          s.threshMeth,s.blurRadius,s.minSize,s.maxSize,s.minCircV.toFixed(2),s.minSolV.toFixed(2),s.maxEccV.toFixed(2),s.doWS].join(','));
+      }
+    }else{
+      const r=f.result;
+      rows.push([q(f.file.name),q('Full'),r.accepted,r.ambiguous||0,r.rejected,r.totalAccepted,
+        s.threshMeth,s.blurRadius,s.minSize,s.maxSize,s.minCircV.toFixed(2),s.minSolV.toFixed(2),s.maxEccV.toFixed(2),s.doWS].join(','));
+    }
+  }
+  dl(rows.join('\n')+'\n','batch_summary_'+ds()+'.csv','text/csv');
+  toast('Batch summary CSV exported');
+}
+function exportBatchDetailCSV(){
+  const rows=[['Image','Well','Colony_ID','Source','Status','X','Y','Area_px','Perimeter','Circularity','Solidity','Eccentricity','Mean_Intensity','Confidence','Reason_Codes'].join(',')];
+  for(const f of batchFiles){
+    if(!f.result)continue;
+    const processWell=(wl,wellLabel)=>{
+      for(const o of wl.allObjects){
+        rows.push([q(f.file.name),q(wellLabel),o.id,o.source,o.status,o.x,o.y,o.area,o.perimeter||0,
+          (o.circularity||0).toFixed(3),(o.solidity||0).toFixed(3),(o.eccentricity||0).toFixed(3),
+          (o.meanIntensity||0).toFixed(1),(o.confidence||1).toFixed(2),q((o.reasons||[]).join(';'))].join(','));
+      }
+    };
+    if(f.result.wells&&f.result.wells.length){
+      for(const wl of f.result.wells)processWell(wl,wl.label);
+    }else{
+      processWell(f.result,'Full');
+    }
+  }
+  dl(rows.join('\n')+'\n','batch_details_'+ds()+'.csv','text/csv');
+  toast('Batch details CSV exported');
+}
+
+// =================================================================
+//  HELPERS
+// =================================================================
+function $(id){return document.getElementById(id)}
+function cCoords(e){const r=C.getBoundingClientRect();return{x:Math.round((e.clientX-r.left)*imgW/r.width),y:Math.round((e.clientY-r.top)*imgH/r.height)}}
+function dl(content,fn,type){const b=new Blob([content],{type});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download=fn;a.click();URL.revokeObjectURL(u)}
+function ds(){return new Date().toISOString().replace(/[:]/g,'-').slice(0,19)}
+function q(s){return '"'+(s||'').toString().replace(/"/g,'""')+'"'}
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function cssVar(v){return _cssCache[v]||((_cssCache[v]=getComputedStyle(document.documentElement).getPropertyValue(v).trim()))}
+function toast(m){const t=$('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),3000)}
+
+// =================================================================
+//  KEYBOARD SHORTCUTS
+// =================================================================
+document.addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT'||e.target.tagName==='SELECT')return;
+  if(e.ctrlKey&&e.key==='z'){e.preventDefault();undo();return}
+  if(e.ctrlKey&&e.key==='y'){e.preventDefault();redo();return}
+  switch(e.key){
+    case'a':setMode('add');break;case'r':setMode('remove');break;
+    case'd':if(!$('detectBtn').disabled)runDetection();break;
+    case'f':zoomFit();break;
+    case'1':setOverlay('original');break;case'2':setOverlay('gray');break;
+    case'3':setOverlay('mask');break;case'4':setOverlay('accrej');break;
+    case'+':case'=':zoomIn();break;case'-':zoomOut();break;
+    case's':if(!$('saveSmpBtn').disabled)saveSample();break;
+  }
+});
+</script>
+</body>
+</html>
