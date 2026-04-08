@@ -19,7 +19,8 @@ header h1{font-size:1.2rem;font-weight:700}
 header .sub{font-size:.7rem;opacity:.75}
 
 /* === THREE-COLUMN LAYOUT === */
-.app{max-width:1600px;margin:0 auto;padding:12px;display:grid;grid-template-columns:1fr 300px 280px;gap:12px;min-height:calc(100vh - 52px)}
+.app{max-width:1600px;margin:0 auto;padding:12px;display:grid;grid-template-columns:1fr 300px 280px;gap:12px;height:calc(100vh - 52px);overflow:hidden}
+.app>div:first-child{max-height:calc(100vh - 70px);overflow-y:auto}
 @media(max-width:1100px){.app{grid-template-columns:1fr 280px}}
 @media(max-width:800px){.app{grid-template-columns:1fr}}
 
@@ -302,7 +303,7 @@ input[type=text],input[type=number]{width:100%;padding:6px 8px;border:1px solid 
         <button class="btn btn-success" id="batchExpSumBtn" disabled onclick="exportBatchSummaryCSV()">&#128190; Batch Summary CSV</button>
         <button class="btn btn-outline" id="batchExpDetBtn" disabled onclick="exportBatchDetailCSV()">&#128190; Batch Details CSV</button>
       </div>
-      <div id="platePreviewWrap" style="display:none;margin-top:10px;border-radius:6px;overflow:hidden;background:#111827;max-height:50vh;overflow-y:auto">
+      <div id="platePreviewWrap" style="display:none;margin-top:10px;border-radius:6px;overflow:hidden;background:#111827;max-height:35vh;overflow-y:auto">
         <canvas id="platePreviewCanvas" style="width:100%;display:block"></canvas>
         <div style="text-align:center;padding:4px 0;color:#94a3b8;font-size:.7rem" id="platePreviewLabel"></div>
       </div>
@@ -2117,6 +2118,14 @@ function updateBatchUI(){
 // Detect 6 circular wells using gradient-based circle Hough transform.
 // Uses aggressive blur to suppress colony texture and focus on well rim edges.
 function detectWells(img,w,h){
+  const plateBounds=detectPlateBounds(img,w,h);
+  const plateW=Math.max(1,plateBounds.x1-plateBounds.x0);
+  const plateH=Math.max(1,plateBounds.y1-plateBounds.y0);
+  const isPortrait=plateW<plateH;
+  const nRows=isPortrait?3:2, nCols=isPortrait?2:3;
+  const expectedPitch=Math.min(plateW/(nCols+0.6),plateH/(nRows+0.6));
+  const expectedR=Math.max(20,expectedPitch*0.42);
+
   const oc=document.createElement('canvas');oc.width=w;oc.height=h;
   const ox=oc.getContext('2d');ox.drawImage(img,0,0);
   const id=ox.getImageData(0,0,w,h).data;
@@ -2154,17 +2163,27 @@ function detectWells(img,w,h){
   const edgePx=[];
   for(let y=2;y<eh-2;y+=2)for(let x=2;x<ew-2;x+=2)if(grad[y*ew+x]>gThresh)edgePx.push({x,y});
 
-  // Expected well radius depends on orientation
-  const isPortrait=ew<eh;
-  const minR=Math.round(Math.min(ew,eh)*0.08);
-  const maxR=Math.round(Math.min(ew,eh)*0.30);
-  const rStep=Math.max(1,Math.round((maxR-minR)/40));
+  const sx0=Math.max(0,Math.round(plateBounds.x0*scale));
+  const sy0=Math.max(0,Math.round(plateBounds.y0*scale));
+  const sx1=Math.min(ew-1,Math.round(plateBounds.x1*scale));
+  const sy1=Math.min(eh-1,Math.round(plateBounds.y1*scale));
+  const searchPad=Math.max(6,Math.round(expectedR*scale*0.35));
+  const searchX0=Math.max(0,sx0-searchPad),searchY0=Math.max(0,sy0-searchPad);
+  const searchX1=Math.min(ew-1,sx1+searchPad),searchY1=Math.min(eh-1,sy1+searchPad);
+
+  // Expected well radius depends on the plate region, not the raw photo aspect ratio
+  const minR=Math.max(8,Math.round(expectedR*scale*0.72));
+  const maxR=Math.max(minR+4,Math.round(expectedR*scale*1.35));
+  const rStep=Math.max(1,Math.round((maxR-minR)/28));
 
   // Accumulator
   const cellSz=Math.max(3,Math.round(ew/250));
   const aw=Math.ceil(ew/cellSz),ah=Math.ceil(eh/cellSz),ar=Math.ceil((maxR-minR)/rStep)+1;
   const acc=new Int32Array(aw*ah*ar);
+  let usedEdgeCount=0;
   for(const p of edgePx){
+    if(p.x<searchX0||p.x>searchX1||p.y<searchY0||p.y>searchY1)continue;
+    usedEdgeCount++;
     for(let ri=0;ri<ar;ri++){
       const r=minR+ri*rStep;
       for(let a=0;a<12;a++){  // 12 directions for better accuracy
@@ -2178,7 +2197,7 @@ function detectWells(img,w,h){
 
   // Find peaks (lower threshold: 0.004 instead of 0.008)
   const peaks=[];
-  const minVotes=Math.max(8,Math.round(edgePx.length*0.004));
+  const minVotes=Math.max(8,Math.round(usedEdgeCount*0.004));
   for(let cy2=1;cy2<ah-1;cy2++)for(let cx2=1;cx2<aw-1;cx2++)for(let ri=0;ri<ar;ri++){
     const v=acc[(cy2*aw+cx2)*ar+ri];
     if(v<minVotes)continue;
@@ -2188,7 +2207,11 @@ function detectWells(img,w,h){
       const ny=cy2+dy,nx=cx2+dx;
       if(ny>=0&&ny<ah&&nx>=0&&nx<aw&&acc[(ny*aw+nx)*ar+ri]>v)isMax=false;
     }
-    if(isMax)peaks.push({cx:(cx2*cellSz+cellSz/2)/scale,cy:(cy2*cellSz+cellSz/2)/scale,r:(minR+ri*rStep)/scale,votes:v});
+    if(isMax){
+      const cx=(cx2*cellSz+cellSz/2)/scale,cy=(cy2*cellSz+cellSz/2)/scale;
+      if(cx<plateBounds.x0-expectedR||cx>plateBounds.x1+expectedR||cy<plateBounds.y0-expectedR||cy>plateBounds.y1+expectedR)continue;
+      peaks.push({cx,cy,r:(minR+ri*rStep)/scale,votes:v});
+    }
   }
   peaks.sort((a,b)=>b.votes-a.votes);
 
@@ -2203,8 +2226,8 @@ function detectWells(img,w,h){
   }
 
   if(kept.length<4){
-    // Fallback: regular grid
-    return fallbackWellGrid(w,h);
+    // Fallback: content-aware grid using image analysis
+    return fallbackWellGrid(w,h,img,plateBounds);
   }
 
   // If only 4-5 wells found, infer missing ones from the grid pattern
@@ -2226,7 +2249,8 @@ function detectWells(img,w,h){
         filled.push(existing?{cx:Math.round(existing.cx),cy:Math.round(existing.cy),r:Math.round(medR2),label:labels[ri*2+ci]}
           :{cx:Math.round(cx),cy:Math.round(cy),r:Math.round(medR2),label:labels[ri*2+ci]});
       }
-      return filled;
+      if(isConsistentWellLayout(filled,plateBounds))return filled;
+      return fallbackWellGrid(w,h,img,plateBounds);
     }else{
       const colCenters=kMeansCluster(xs,3);
       const rowCenters=kMeansCluster(ys,2);
@@ -2238,7 +2262,8 @@ function detectWells(img,w,h){
         filled.push(existing?{cx:Math.round(existing.cx),cy:Math.round(existing.cy),r:Math.round(medR2),label:labels[ri*3+ci]}
           :{cx:Math.round(cx),cy:Math.round(cy),r:Math.round(medR2),label:labels[ri*3+ci]});
       }
-      return filled;
+      if(isConsistentWellLayout(filled,plateBounds))return filled;
+      return fallbackWellGrid(w,h,img,plateBounds);
     }
   }
 
@@ -2262,6 +2287,10 @@ function detectWells(img,w,h){
   const radii=wells.map(w2=>w2.r).sort((a,b)=>a-b);
   const medR=radii[2];
   wells.forEach(w2=>w2.r=medR);
+  if(!isConsistentWellLayout(wells,plateBounds)){
+    const fallback=fallbackWellGrid(w,h,img,plateBounds);
+    if(fallback)return fallback;
+  }
   return wells;
 }
 // Simple 1D k-means clustering helper
@@ -2283,26 +2312,257 @@ function kMeansCluster(vals,k){
   }
   return centers.sort((a,b)=>a-b);
 }
-function fallbackWellGrid(w,h){
-  // Detect orientation: landscape=3cols×2rows, portrait=2cols×3rows
+function fallbackWellGrid(w,h,img,plateBounds){
+  // Content-aware fallback: detect well centers directly from image content
+  if(img){
+    const result=detectWellCentersFromContent(img,w,h,plateBounds);
+    if(result)return result;
+  }
+  // Ultimate fallback: simple equal-spacing grid (no image data)
+  const bounds=plateBounds||{x0:0,y0:0,x1:w,y1:h};
+  const bw=Math.max(1,bounds.x1-bounds.x0),bh=Math.max(1,bounds.y1-bounds.y0);
+  const isPortrait=bw<bh;
   const wells=[];
-  if(w>=h){
-    // Landscape: 3 columns × 2 rows (standard plate orientation)
+  if(!isPortrait){
     const labels=['A1','A2','A3','B1','B2','B3'];
-    const r=Math.round(Math.min(w/8,h/6));
-    for(let row=0;row<2;row++)for(let col=0;col<3;col++){
-      wells.push({cx:Math.round(w*(col+1)/4),cy:Math.round(h*(row+1)/3),r,label:labels[row*3+col]});
-    }
+    const r=Math.round(Math.min(bw/8,bh/6));
+    for(let row=0;row<2;row++)for(let col=0;col<3;col++)
+      wells.push({cx:Math.round(bounds.x0+bw*(col+1)/4),cy:Math.round(bounds.y0+bh*(row+1)/3),r,label:labels[row*3+col]});
   }else{
-    // Portrait: 2 columns × 3 rows (plate rotated 90°)
     const labels=['A1','A2','B1','B2','C1','C2'];
-    const r=Math.round(Math.min(w/6,h/8));
-    for(let row=0;row<3;row++)for(let col=0;col<2;col++){
-      wells.push({cx:Math.round(w*(col+1)/3),cy:Math.round(h*(row+1)/4),r,label:labels[row*2+col]});
-    }
+    const r=Math.round(Math.min(bw/6,bh/8));
+    for(let row=0;row<3;row++)for(let col=0;col<2;col++)
+      wells.push({cx:Math.round(bounds.x0+bw*(col+1)/3),cy:Math.round(bounds.y0+bh*(row+1)/4),r,label:labels[row*2+col]});
   }
   return wells;
 }
+// Detect well centers by analyzing row/column intensity profiles.
+// Wells appear as circular regions with distinct contrast (dark colonies on lighter agar)
+// compared to plate frame, lid, and background areas.
+function detectWellCentersFromContent(img,w,h,plateBounds){
+  const bounds=plateBounds||detectPlateBounds(img,w,h);
+  const maxDim=600;
+  const scale=Math.min(1,maxDim/Math.max(w,h));
+  const sw=Math.round(w*scale),sh=Math.round(h*scale);
+  const c=document.createElement('canvas');c.width=sw;c.height=sh;
+  const ctx=c.getContext('2d');ctx.drawImage(img,0,0,sw,sh);
+  const d=ctx.getImageData(0,0,sw,sh).data;
+  const sx0=Math.max(0,Math.round(bounds.x0*scale)),sy0=Math.max(0,Math.round(bounds.y0*scale));
+  const sx1=Math.min(sw,Math.round(bounds.x1*scale)),sy1=Math.min(sh,Math.round(bounds.y1*scale));
+  const pw=Math.max(1,sx1-sx0),ph=Math.max(1,sy1-sy0);
+  const gray=new Float32Array(pw*ph);
+  for(let y=0;y<ph;y++)for(let x=0;x<pw;x++){
+    const si=((y+sy0)*sw+(x+sx0))*4;
+    gray[y*pw+x]=0.299*d[si]+0.587*d[si+1]+0.114*d[si+2];
+  }
+
+  const isPortrait=pw<ph;
+  const nRows=isPortrait?3:2, nCols=isPortrait?2:3;
+
+  // Compute row-wise local contrast: for each row, measure the standard deviation
+  // in a sliding window. Wells have high local contrast; plate rim/background don't.
+  const rowContrast=new Float32Array(ph);
+  for(let y=0;y<ph;y++){
+    // Use the central plate area to avoid the tray frame and hinges
+    const x0=Math.round(pw*0.15),x1=Math.round(pw*0.85);
+    let sum=0,sum2=0,cnt=0;
+    for(let x=x0;x<x1;x++){const v=gray[y*pw+x];sum+=v;sum2+=v*v;cnt++}
+    if(cnt>0){const m=sum/cnt;rowContrast[y]=Math.sqrt(sum2/cnt-m*m)}
+  }
+  // Smooth row contrast with well-scale window
+  const rowBR=Math.max(5,Math.round(ph*0.04));
+  const rowSmooth=boxSmooth1D(rowContrast,rowBR);
+
+  // Find row centers: look for nRows peaks in the smoothed contrast profile
+  const expectedRowSpacing=ph/(nRows+1);
+  const minPeakDist=Math.round(expectedRowSpacing*0.5);
+  const rowPeaks=findNPeaks(rowSmooth,nRows,minPeakDist,Math.round(ph*0.05),ph-Math.round(ph*0.05));
+  rowPeaks.sort((a,b)=>a-b);
+
+  // Find column centers: compute mean intensity at each column across detected well rows.
+  // Wells show as dark regions (agar+colonies) while plate frame between wells is brighter.
+  const bandH=Math.max(10,Math.round(expectedRowSpacing*0.25));
+  const colMeanIntensity=new Float32Array(pw);
+  for(let x=0;x<pw;x++){
+    let sum=0,cnt=0;
+    for(const ry of rowPeaks){
+      for(let y=Math.max(0,ry-bandH);y<Math.min(ph,ry+bandH);y++){
+        sum+=gray[y*pw+x];cnt++;
+      }
+    }
+    colMeanIntensity[x]=cnt>0?sum/cnt:255;
+  }
+  // Smooth with window proportional to expected well diameter (~40% of image width / nCols)
+  const wellDiamEst=Math.round(pw*0.35/nCols);
+  const colBR=Math.max(5,Math.round(wellDiamEst*0.5));
+  const colSmooth=boxSmooth1D(colMeanIntensity,colBR);
+  // Find column centers as intensity MINIMA (invert signal then find peaks)
+  const colMax=Math.max(...colSmooth);
+  const colInverted=new Float32Array(pw);
+  for(let x=0;x<pw;x++)colInverted[x]=colMax-colSmooth[x];
+  const expectedColSpacing=pw/(nCols+1);
+  const minColDist=Math.round(expectedColSpacing*0.4);
+  const colPeaks=findNPeaks(colInverted,nCols,minColDist,Math.round(pw*0.08),pw-Math.round(pw*0.08));
+
+  if(rowPeaks.length!==nRows||colPeaks.length!==nCols)return null;
+
+  // Sort peaks
+  rowPeaks.sort((a,b)=>a-b);
+  colPeaks.sort((a,b)=>a-b);
+
+  // Estimate well radius from spacing between adjacent well centers
+  const rowSpacings=[];
+  for(let i=1;i<rowPeaks.length;i++)rowSpacings.push(rowPeaks[i]-rowPeaks[i-1]);
+  const colSpacings=[];
+  for(let i=1;i<colPeaks.length;i++)colSpacings.push(colPeaks[i]-colPeaks[i-1]);
+  const spacings=rowSpacings.concat(colSpacings);
+  const avgSpacing=(spacings.length?spacings.reduce((a,b)=>a+b,0)/spacings.length:Math.min(expectedRowSpacing,expectedColSpacing));
+  // Well radius is ~42% of center-to-center spacing for 6-well plates (35mm well, 39mm spacing)
+  const rScaled=Math.round(avgSpacing*0.42);
+
+  // Build well array
+  const wells=[];
+  const labels=isPortrait?['A1','A2','B1','B2','C1','C2']:['A1','A2','A3','B1','B2','B3'];
+  for(let ri=0;ri<nRows;ri++)for(let ci=0;ci<nCols;ci++){
+    wells.push({
+      cx:Math.round((sx0+colPeaks[ci])/scale),
+      cy:Math.round((sy0+rowPeaks[ri])/scale),
+      r:Math.round(rScaled/scale),
+      label:labels[ri*nCols+ci]
+    });
+  }
+  return isConsistentWellLayout(wells,bounds)?wells:null;
+}
+// Find exactly n peaks in a 1D signal, with minimum distance between peaks
+function findNPeaks(arr,n,minDist,searchStart,searchEnd){
+  // Find all local maxima
+  const candidates=[];
+  for(let i=Math.max(1,searchStart);i<Math.min(arr.length-1,searchEnd);i++){
+    if(arr[i]>arr[i-1]&&arr[i]>=arr[i+1])candidates.push({pos:i,val:arr[i]});
+  }
+  candidates.sort((a,b)=>b.val-a.val);
+  // Greedy selection with minimum distance constraint
+  const peaks=[];
+  for(const c of candidates){
+    if(peaks.every(p=>Math.abs(p-c.pos)>=minDist)){
+      peaks.push(c.pos);
+      if(peaks.length>=n)break;
+    }
+  }
+  // If we didn't find enough peaks, fall back to equal spacing
+  if(peaks.length<n){
+    const fallbackPeaks=[];
+    const span=searchEnd-searchStart;
+    for(let i=0;i<n;i++)fallbackPeaks.push(Math.round(searchStart+span*(i+1)/(n+1)));
+    return fallbackPeaks;
+  }
+  return peaks;
+}
+function detectPlateBounds(img,w,h){
+  const maxDim=700;
+  const scale=Math.min(1,maxDim/Math.max(w,h));
+  const sw=Math.round(w*scale),sh=Math.round(h*scale);
+  const c=document.createElement('canvas');c.width=sw;c.height=sh;
+  const ctx=c.getContext('2d');ctx.drawImage(img,0,0,sw,sh);
+  const d=ctx.getImageData(0,0,sw,sh).data;
+  const gray=new Float32Array(sw*sh);
+  for(let i=0;i<sw*sh;i++)gray[i]=0.299*d[i*4]+0.587*d[i*4+1]+0.114*d[i*4+2];
+
+  const rowVar=new Float32Array(sh);
+  for(let y=0;y<sh;y++){
+    let sum=0,sum2=0;
+    for(let x=0;x<sw;x++){const v=gray[y*sw+x];sum+=v;sum2+=v*v}
+    const mean=sum/sw;
+    rowVar[y]=sum2/sw-mean*mean;
+  }
+  const colVar=new Float32Array(sw);
+  for(let x=0;x<sw;x++){
+    let sum=0,sum2=0;
+    for(let y=0;y<sh;y++){const v=gray[y*sw+x];sum+=v;sum2+=v*v}
+    const mean=sum/sh;
+    colVar[x]=sum2/sh-mean*mean;
+  }
+
+  const rowSmooth=boxSmooth1D(rowVar,Math.max(3,Math.round(sh*0.03)));
+  const colSmooth=boxSmooth1D(colVar,Math.max(3,Math.round(sw*0.03)));
+  const rowThresh=otsuThreshold1D(rowSmooth);
+  const colThresh=otsuThreshold1D(colSmooth);
+
+  let sy0=0,sy1=sh-1,sx0=0,sx1=sw-1;
+  for(let y=0;y<sh;y++)if(rowSmooth[y]>rowThresh){sy0=y;break}
+  for(let y=sh-1;y>=0;y--)if(rowSmooth[y]>rowThresh){sy1=y;break}
+  for(let x=0;x<sw;x++)if(colSmooth[x]>colThresh){sx0=x;break}
+  for(let x=sw-1;x>=0;x--)if(colSmooth[x]>colThresh){sx1=x;break}
+
+  const yMargin=Math.round(sh*0.02),xMargin=Math.round(sw*0.02);
+  sy0=Math.min(sy0+yMargin,sh-1);sy1=Math.max(sy1-yMargin,0);
+  sx0=Math.min(sx0+xMargin,sw-1);sx1=Math.max(sx1-xMargin,0);
+
+  if((sy1-sy0)<sh*0.25){sy0=Math.round(sh*0.35);sy1=Math.round(sh*0.8)}
+  if((sx1-sx0)<sw*0.25){sx0=Math.round(sw*0.12);sx1=Math.round(sw*0.88)}
+
+  return {x0:Math.round(sx0/scale),y0:Math.round(sy0/scale),x1:Math.round(sx1/scale),y1:Math.round(sy1/scale)};
+}
+function isConsistentWellLayout(wells,plateBounds){
+  if(!wells||wells.length!==6)return false;
+  const bounds=plateBounds||{
+    x0:Math.min(...wells.map(w2=>w2.cx-w2.r)),
+    y0:Math.min(...wells.map(w2=>w2.cy-w2.r)),
+    x1:Math.max(...wells.map(w2=>w2.cx+w2.r)),
+    y1:Math.max(...wells.map(w2=>w2.cy+w2.r))
+  };
+  const isPortrait=(bounds.x1-bounds.x0)<(bounds.y1-bounds.y0);
+  const nCols=isPortrait?2:3;
+  const rows=[];
+  const sortedByY=wells.slice().sort((a,b)=>a.cy-b.cy);
+  for(let i=0;i<sortedByY.length;i+=nCols)rows.push(sortedByY.slice(i,i+nCols).sort((a,b)=>a.cx-b.cx));
+  if(rows.some(r=>r.length!==nCols))return false;
+  const radii=wells.map(w2=>w2.r).sort((a,b)=>a-b);
+  const medR=radii[Math.floor(radii.length/2)]||0;
+  const spreadLimit=Math.max(12,medR*0.9);
+  for(const row of rows){
+    const ys=row.map(w2=>w2.cy);
+    if(Math.max(...ys)-Math.min(...ys)>spreadLimit)return false;
+  }
+  for(let ci=0;ci<nCols;ci++){
+    const xs=rows.map(row=>row[ci].cx);
+    if(Math.max(...xs)-Math.min(...xs)>spreadLimit)return false;
+  }
+  const xMargin=Math.max(10,medR*1.4),yMargin=Math.max(10,medR*1.4);
+  for(const wl of wells){
+    if(wl.cx<bounds.x0-xMargin||wl.cx>bounds.x1+xMargin||wl.cy<bounds.y0-yMargin||wl.cy>bounds.y1+yMargin)return false;
+  }
+  return true;
+}
+function boxSmooth1D(arr,radius){
+  const out=new Float32Array(arr.length);
+  let sum=0,count=0;
+  for(let i=0;i<Math.min(radius,arr.length);i++){sum+=arr[i];count++}
+  for(let i=0;i<arr.length;i++){
+    if(i+radius<arr.length){sum+=arr[i+radius];count++}
+    if(i-radius-1>=0){sum-=arr[i-radius-1];count--}
+    out[i]=sum/count;
+  }
+  return out;
+}
+function otsuThreshold1D(arr){
+  const sorted=Array.from(arr).sort((a,b)=>a-b);
+  const n=sorted.length;
+  let bestT=sorted[Math.floor(n/2)]||0,bestScore=-1;
+  for(let ti=1;ti<20;ti++){
+    const t=sorted[Math.floor(ti*n/20)];
+    let n0=0,s0=0,n1=0,s1=0;
+    for(let i=0;i<n;i++){
+      if(arr[i]<=t){n0++;s0+=arr[i]}else{n1++;s1+=arr[i]}
+    }
+    if(!n0||!n1)continue;
+    const m0=s0/n0,m1=s1/n1;
+    const score=n0*n1*(m1-m0)*(m1-m0);
+    if(score>bestScore){bestScore=score;bestT=t}
+  }
+  return bestT;
+}
+
 function gaussBlur1D(src,w,h,sigma){
   const ks=Math.ceil(sigma*3)|1,half=ks>>1;
   const kern=new Float32Array(ks*2+1);
@@ -2365,6 +2625,8 @@ function getDetectionSettings(){
     threshMeth:$('threshMethod').value,
     threshManual:parseInt($('threshVal').value),
     adaptW:parseInt($('adaptWin').value),adaptO:parseInt($('adaptOff').value),
+    niblackK:parseInt($('niblackK').value)/100,
+    sauvolaR:parseInt($('sauvolaR').value),
     minSize:parseInt($('minSz').value),maxSize:parseInt($('maxSz').value),
     minCircV:parseInt($('minCirc').value)/100,
     minSolV:parseInt($('minSol').value)/100,
@@ -2460,7 +2722,7 @@ function processPlateImage(f,s,wells){
     // Offset coordinates back to full image
     res.allObjects.forEach(o=>{o.x+=x0;o.y+=y0});
     wellResults.push({label:wl.label,cx:wl.cx,cy:wl.cy,r:wl.r,...res});
-    totalAcc+=res.totalAccepted;totalRej+=res.totalRejected;
+    totalAcc+=res.totalAccepted;totalRej+=res.rejected;
   }
   return {wells:wellResults,totalAccepted:totalAcc,totalRejected:totalRej};
 }
@@ -2506,16 +2768,11 @@ function runPipelineOnData(pixelData,w,h,s,circularROI){
   // 4. Thresholding
   const mask=new Uint8Array(w*h);
   if(s.threshMeth==='adaptive'){
-    // Integral image
-    const integ=new Float64Array((w+1)*(h+1));
-    for(let y=0;y<h;y++)for(let x=0;x<w;x++)integ[(y+1)*(w+1)+x+1]=processed[y*w+x]+integ[y*(w+1)+x+1]+integ[(y+1)*(w+1)+x]-integ[y*(w+1)+x];
-    const hw=s.adaptW>>1;
-    for(let y=0;y<h;y++)for(let x=0;x<w;x++){
-      const x0=Math.max(0,x-hw),y0=Math.max(0,y-hw),x1=Math.min(w,x+hw+1),y1=Math.min(h,y+hw+1);
-      const area2=(x1-x0)*(y1-y0);
-      const mean=(integ[y1*(w+1)+x1]-integ[y0*(w+1)+x1]-integ[y1*(w+1)+x0]+integ[y0*(w+1)+x0])/area2;
-      mask[y*w+x]=s.invert?(processed[y*w+x]<mean-s.adaptO?1:0):(processed[y*w+x]>mean+s.adaptO?1:0);
-    }
+    mask.set(adaptiveThreshold(processed,w,h,s.adaptW,s.adaptO,s.invert));
+  }else if(s.threshMeth==='niblack'){
+    mask.set(niblackThreshold(processed,w,h,s.adaptW,s.niblackK,s.invert));
+  }else if(s.threshMeth==='sauvola'){
+    mask.set(sauvolaThreshold(processed,w,h,s.adaptW,s.niblackK,s.sauvolaR,s.invert));
   }else{
     // Otsu or manual
     let thr=s.threshManual;
@@ -2544,6 +2801,29 @@ function runPipelineOnData(pixelData,w,h,s,circularROI){
     }
   }
 
+  // Match the single-image path: remove tiny specks and fill small holes before labeling.
+  {
+    const {labels:tmpL,objects:tmpO}=labelAndFeatureBatch(mask,null,w,h);
+    const minClean=Math.max(3,Math.floor(s.minSize/4));
+    const smallSet=new Set();
+    for(let i=0;i<tmpO.length;i++)if(tmpO[i].pixels<minClean)smallSet.add(i+1);
+    if(smallSet.size>0)for(let j=0;j<w*h;j++)if(smallSet.has(tmpL[j]))mask[j]=0;
+
+    const inv=new Uint8Array(w*h);
+    for(let i=0;i<w*h;i++)inv[i]=mask[i]?0:1;
+    const {labels:holeL,objects:holeO}=labelAndFeatureBatch(inv,null,w,h);
+    const hSmall=new Set();
+    for(let i=0;i<holeO.length;i++)if(holeO[i].pixels<minClean*2)hSmall.add(i+1);
+    if(hSmall.size>0)for(let j=0;j<w*h;j++)if(hSmall.has(holeL[j]))mask[j]=1;
+    if(circularROI){
+      const effR=circularROI.r*(1-s.edgeMarginPct);
+      for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+        const d=Math.hypot(x-circularROI.cx,y-circularROI.cy);
+        if(d>effR)mask[y*w+x]=0;
+      }
+    }
+  }
+
   // 5. Connected components + features
   const {objects,labels}=labelAndFeatureBatch(mask,gray,w,h);
 
@@ -2562,7 +2842,7 @@ function runPipelineOnData(pixelData,w,h,s,circularROI){
         const ecc=calcEccentricity(sc,cx2,cy2);
         finalObjects.push({id:finalObjects.length,x:cx2,y:cy2,area,perimeter:Math.round(perim),circularity:circ,
           solidity:sol,eccentricity:ecc,meanIntensity:sc.sumI/sc.pixels,
-          borderDist:circularROI?Math.hypot(cx2-circularROI.cx,cy2-circularROI.cy)-circularROI.r*(1-s.edgeMarginPct):null,
+          borderDist:circularROI?circularROI.r*(1-s.edgeMarginPct)-Math.hypot(cx2-circularROI.cx,cy2-circularROI.cy):null,
           status:'accepted',reasons:[],confidence:1,splitFrom:ci,source:'auto'});
       }
     }else{
@@ -2574,7 +2854,7 @@ function runPipelineOnData(pixelData,w,h,s,circularROI){
       const ecc=calcEccentricity(comp,cx2,cy2);
       finalObjects.push({id:finalObjects.length,x:cx2,y:cy2,area,perimeter:Math.round(perim),circularity:circ,
         solidity:sol,eccentricity:ecc,meanIntensity:comp.sumI/comp.pixels,
-        borderDist:circularROI?Math.hypot(cx2-circularROI.cx,cy2-circularROI.cy)-circularROI.r*(1-s.edgeMarginPct):null,
+        borderDist:circularROI?circularROI.r*(1-s.edgeMarginPct)-Math.hypot(cx2-circularROI.cx,cy2-circularROI.cy):null,
         status:'accepted',reasons:[],confidence:1,splitFrom:null,source:'auto'});
     }
   }
@@ -2587,22 +2867,21 @@ function runPipelineOnData(pixelData,w,h,s,circularROI){
     if(obj.circularity<s.minCircV){obj.status='rejected';obj.reasons.push('REJ_CIRC_MIN')}
     if(obj.solidity<s.minSolV){obj.status='rejected';obj.reasons.push('REJ_SOL_MIN')}
     if(obj.eccentricity>s.maxEccV){obj.status='rejected';obj.reasons.push('REJ_ECC_MAX')}
-    if(s.borderRej&&circularROI&&obj.borderDist!=null&&obj.borderDist>-Math.sqrt(obj.area/Math.PI)){
-      // borderDist is negative (inside circle) measured from edge
-    }
+    if(s.borderRej&&circularROI&&obj.borderDist!=null&&obj.borderDist<Math.sqrt(obj.area/Math.PI)){obj.status='rejected';obj.reasons.push('REJ_BORDER_TOUCH')}
     // Confidence
     let conf=1;
     if(obj.area>0){const range=s.maxSize-s.minSize;if(range>0){const dm=(obj.area-s.minSize)/range,dM=(s.maxSize-obj.area)/range;conf*=Math.min(1,Math.min(dm,dM)*5+0.5)}}
     if(s.minCircV>0&&obj.circularity>0)conf*=Math.min(1,(obj.circularity-s.minCircV)/0.3+0.5);
     if(s.minSolV>0&&obj.solidity>0)conf*=Math.min(1,(obj.solidity-s.minSolV)/0.3+0.5);
     if(s.maxEccV<1&&obj.eccentricity>0)conf*=Math.min(1,(s.maxEccV-obj.eccentricity)/0.3+0.5);
+    if(obj.borderDist!=null){const br=Math.sqrt(obj.area/Math.PI);conf*=Math.min(1,obj.borderDist/(br*2))}
     obj.confidence=Math.max(0,Math.min(1,conf));
     if(obj.status==='accepted'&&obj.confidence<0.4){obj.status='ambiguous';obj.reasons.push('LOW_CONFIDENCE')}
     if(obj.status==='rejected')rejected++;
     else if(obj.status==='ambiguous')ambiguous++;
     else accepted++;
   }
-  return {allObjects:finalObjects,totalAccepted:accepted+ambiguous,accepted,rejected,ambiguous};
+  return {allObjects:finalObjects,totalAccepted:accepted+ambiguous,totalRejected:rejected,accepted,rejected,ambiguous};
 }
 
 // Batch-compatible labeling (standalone, doesn't use globals)
