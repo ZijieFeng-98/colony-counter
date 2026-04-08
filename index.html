@@ -136,6 +136,27 @@ input[type=text],input[type=number]{width:100%;padding:6px 8px;border:1px solid 
 .qc-flag.warn{background:#fef3c7;color:#92400e}
 .qc-flag.ok{background:#dcfce7;color:#166534}
 
+/* Help tooltips */
+.help-tip{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:var(--border);color:var(--muted);font-size:.6rem;font-weight:700;cursor:help;margin-left:4px;position:relative;vertical-align:middle;flex-shrink:0;transition:background .2s,color .2s}
+.help-tip:hover{background:var(--primary);color:#fff}
+.help-tip .tip-text{display:none;position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);width:220px;background:#1e293b;color:#f1f5f9;font-size:.68rem;font-weight:400;line-height:1.45;padding:8px 10px;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.25);z-index:999;pointer-events:none;text-align:left}
+.help-tip .tip-text::after{content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);border:5px solid transparent;border-top-color:#1e293b}
+.help-tip:hover .tip-text{display:block}
+
+/* Simple/Advanced toggle */
+.mode-switch{display:flex;gap:0;border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:8px;font-size:.72rem}
+.mode-switch button{flex:1;padding:5px 10px;border:none;background:var(--bg);color:var(--muted);cursor:pointer;font-weight:500;transition:all .15s}
+.mode-switch button.active{background:var(--primary);color:#fff;font-weight:600}
+.mode-switch button:hover:not(.active){background:var(--primary-light);color:var(--primary)}
+.adv-param{transition:max-height .3s ease,opacity .2s ease,margin .2s ease;overflow:hidden}
+.simple-mode .adv-param{max-height:0;opacity:0;margin:0;padding:0}
+
+/* Presets */
+.presets-row{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}
+.preset-btn{padding:4px 10px;border:1px solid var(--border);border-radius:14px;background:#fff;color:var(--text);font-size:.68rem;cursor:pointer;transition:all .15s;white-space:nowrap}
+.preset-btn:hover{border-color:var(--primary);color:var(--primary);background:var(--primary-light)}
+.preset-btn.active-preset{border-color:var(--primary);background:var(--primary);color:#fff}
+
 /* Legend */
 .legend{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
 .legend-item{display:flex;align-items:center;gap:3px;font-size:.68rem;color:var(--muted);cursor:pointer;padding:2px 6px;border-radius:4px;user-select:none;transition:opacity .2s,background .2s}
@@ -232,7 +253,7 @@ input[type=text],input[type=number]{width:100%;padding:6px 8px;border:1px solid 
 <body>
 
 <header>
-  <div><h1>ColonyCounter</h1><span class="sub">v4.1.0 &mdash; Batch &amp; 6-Well Plate Colony Formation Assay Analysis</span></div>
+  <div><h1>ColonyCounter</h1><span class="sub">v4.1.0 &mdash; Batch & 6-Well Plate Colony Formation Assay Analysis</span></div>
   <div style="font-size:.7rem;opacity:.8"><span id="headerFile"></span></div>
 </header>
 
@@ -250,7 +271,7 @@ input[type=text],input[type=number]{width:100%;padding:6px 8px;border:1px solid 
     <div class="tab-panel active" id="panelSingle">
     <div class="upload-area" id="uploadArea">
       <div style="font-size:1.6rem">&#128247;</div>
-      <p><strong>Click or drag &amp; drop</strong> plate image (JPG, PNG, TIFF)</p>
+      <p><strong>Click or drag & drop</strong> plate image (JPG, PNG, TIFF)</p>
       <input type="file" id="fileInput" accept="image/*" style="display:none">
     </div>
     </div>
@@ -263,7 +284,7 @@ input[type=text],input[type=number]{width:100%;padding:6px 8px;border:1px solid 
       </div>
       <div class="batch-upload" id="batchUploadArea">
         <div style="font-size:1.4rem">&#128194;</div>
-        <p><strong>Click or drag &amp; drop</strong> multiple images</p>
+        <p><strong>Click or drag & drop</strong> multiple images</p>
         <input type="file" id="batchFileInput" accept="image/*" multiple style="display:none">
       </div>
       <div class="batch-file-list" id="batchFileList"></div>
@@ -306,9 +327,9 @@ input[type=text],input[type=number]{width:100%;padding:6px 8px;border:1px solid 
       <span>Compare:</span>
       <select id="cmpMode" onchange="updateCompare()">
         <option value="off">Off</option>
-        <option value="orig_mask">Original &harr; Mask</option>
-        <option value="mask_accrej">Mask &harr; Acc/Rej</option>
-        <option value="orig_accrej">Original &harr; Overlay</option>
+        <option value="orig_mask">Original ↔ Mask</option>
+        <option value="mask_accrej">Mask ↔ Acc/Rej</option>
+        <option value="orig_accrej">Original ↔ Overlay</option>
       </select>
       <input type="range" id="cmpSlider" min="0" max="100" value="50" oninput="renderCompare()">
       <span class="cv" id="cmpPct">50%</span>
@@ -320,7 +341,7 @@ input[type=text],input[type=number]{width:100%;padding:6px 8px;border:1px solid 
       <span class="legend-item" data-cat="manual" onclick="toggleLegend(this)"><span class="legend-dot" style="border-color:var(--magenta);background:transparent"></span>Manual</span>
       <span class="legend-item" data-cat="split" onclick="toggleLegend(this)"><span class="legend-dot" style="border-color:var(--purple);background:rgba(168,85,247,.15)"></span>Split</span>
     </div>
-    <div class="canvas-container" id="canvasContainer"><canvas id="mainCanvas"></canvas><div class="proc-overlay" id="procOverlay"><div class="proc-spinner"></div><div class="proc-text">Detecting colonies&hellip;</div></div></div>
+    <div class="canvas-container" id="canvasContainer"><canvas id="mainCanvas"></canvas><div class="proc-overlay" id="procOverlay"><div class="proc-spinner"></div><div class="proc-text">Detecting colonies...</div></div></div>
     <div class="status-bar"><span id="stL">No image loaded</span><span id="stR"></span></div>
   </div>
 </div>
@@ -329,20 +350,22 @@ input[type=text],input[type=number]{width:100%;padding:6px 8px;border:1px solid 
 <div class="center-col">
   <!-- ROI -->
   <div class="panel">
-    <h2>&#9312; Region of Interest <span class="badge">ROI</span></h2>
+    <h2>① Region of Interest <span class="badge">ROI</span></h2>
     <p style="font-size:.72rem;color:var(--muted);margin-bottom:6px">Draw circular ROI. Only area inside is analyzed.</p>
-    <button class="btn btn-outline btn-sm" id="roiBtn" disabled onclick="startROI()">&#9711; Draw ROI</button>
+    <button class="btn btn-outline btn-sm" id="roiBtn" disabled onclick="startROI()">⊙ Draw ROI</button>
     <button class="btn btn-outline btn-sm" id="clrROI" disabled onclick="clearROI()">Clear</button>
     <div class="cg" style="margin-top:6px">
-      <label>Edge Exclusion Margin (%)</label>
+      <label>Edge Exclusion Margin (%)
+        <span class="help-tip">?<span class="tip-text">Shrinks the detection area by this percentage from the edges. Helps avoid counting artefacts near the well rim. 3% is a good default.</span></span>
+      </label>
       <div class="rr"><input type="range" id="edgeMargin" min="0" max="15" value="3" step="1"><span class="rv" id="edgeMarginV">3</span></div>
     </div>
     <div class="cbr"><input type="checkbox" id="useROI" checked><label for="useROI">Use ROI for detection</label></div>
   </div>
 
   <!-- Detection -->
-  <div class="panel">
-    <h2>&#9313; Detection <span class="badge">Pipeline</span></h2>
+  <div class="panel" id="detectionPanel">
+    <h2>② Detection <span class="badge">Pipeline</span></h2>
     <div class="pipeline" id="pipeSteps">
       <span class="pstep" id="sGray">Gray</span>
       <span class="pstep" id="sBlur">Blur</span>
@@ -354,17 +377,40 @@ input[type=text],input[type=number]{width:100%;padding:6px 8px;border:1px solid 
       <span class="pstep" id="sSplit">Split</span>
     </div>
 
-    <div class="cbr"><input type="checkbox" id="invertChk" checked><label for="invertChk">Dark colonies on light background</label></div>
+    <!-- Simple / Advanced toggle -->
+    <div class="mode-switch" id="modeSwitch">
+      <button class="active" onclick="setDetectMode('simple')">Simple</button>
+      <button onclick="setDetectMode('advanced')">Advanced</button>
+    </div>
 
-    <div class="cg">
-      <label>Gaussian Blur Radius</label>
+    <!-- Presets -->
+    <div class="presets-row" id="presetsRow">
+      <span class="help-tip" style="margin-right:2px">?<span class="tip-text">Quick-start settings tuned for common CFA staining methods. Click one, then press Auto-Detect.</span></span>
+      <button class="preset-btn" onclick="applyPreset('cv')">Crystal Violet</button>
+      <button class="preset-btn" onclick="applyPreset('mb')">Methylene Blue</button>
+      <button class="preset-btn" onclick="applyPreset('sparse')">Sparse</button>
+      <button class="preset-btn" onclick="applyPreset('dense')">Dense</button>
+    </div>
+
+    <div class="cbr"><input type="checkbox" id="invertChk" checked><label for="invertChk">Dark colonies on light background</label>
+      <span class="help-tip">?<span class="tip-text">Check this if your colonies appear darker than the background (most CFA stains). Uncheck for fluorescent / light-on-dark images.</span></span>
+    </div>
+
+    <div class="cg adv-param">
+      <label>Gaussian Blur Radius
+        <span class="help-tip">?<span class="tip-text">Smooths the image before detection to reduce noise. Higher = more smoothing. 0 = no blur. Default 2 works for most CFA plates.</span></span>
+      </label>
       <div class="rr"><input type="range" id="blurR" min="0" max="10" value="2"><span class="rv" id="blurRV">2</span></div>
     </div>
 
-    <div class="cbr"><input type="checkbox" id="bgSubChk" checked><label for="bgSubChk">Background subtraction</label></div>
+    <div class="cbr adv-param"><input type="checkbox" id="bgSubChk" checked><label for="bgSubChk">Background subtraction</label>
+      <span class="help-tip">?<span class="tip-text">Removes uneven lighting / background gradients. Keep ON for scanned plates. Turn OFF if background is already perfectly uniform.</span></span>
+    </div>
 
-    <div class="cg">
-      <label>Threshold Method</label>
+    <div class="cg adv-param">
+      <label>Threshold Method
+        <span class="help-tip">?<span class="tip-text">How the app decides which pixels are "colony" vs "background". Otsu (auto) works best for most CFA images. Try Adaptive if Otsu misses colonies in unevenly-lit areas.</span></span>
+      </label>
       <select id="threshMethod">
         <option value="manual">Manual</option>
         <option value="otsu" selected>Otsu (auto)</option>
@@ -374,21 +420,31 @@ input[type=text],input[type=number]{width:100%;padding:6px 8px;border:1px solid 
       </select>
     </div>
 
-    <div class="cg" id="threshManualGroup">
-      <label>Threshold Value</label>
+    <div class="cg adv-param" id="threshManualGroup">
+      <label>Threshold Value
+        <span class="help-tip">?<span class="tip-text">Manual brightness cutoff (0–255). Pixels darker than this become "colony". Only used when Threshold Method = Manual. The histogram below shows where the auto threshold sits.</span></span>
+      </label>
       <div class="rr"><input type="range" id="threshVal" min="1" max="255" value="128"><span class="rv" id="threshValV">128</span></div>
     </div>
 
-    <div class="cg" id="adaptiveGroup" style="display:none">
-      <label>Adaptive Window Size</label>
+    <div class="cg adv-param" id="adaptiveGroup" style="display:none">
+      <label>Adaptive Window Size
+        <span class="help-tip">?<span class="tip-text">Size of the local neighbourhood used to compute the threshold at each pixel. Larger = smoother threshold but may miss small colonies.</span></span>
+      </label>
       <div class="rr"><input type="range" id="adaptWin" min="11" max="201" value="51" step="2"><span class="rv" id="adaptWinV">51</span></div>
-      <label style="margin-top:4px" id="adaptOffLabel">Adaptive Offset</label>
+      <label style="margin-top:4px" id="adaptOffLabel">Adaptive Offset
+        <span class="help-tip">?<span class="tip-text">Fine-tunes sensitivity. Negative = more sensitive (detects faint colonies). Positive = stricter (fewer false positives).</span></span>
+      </label>
       <div class="rr"><input type="range" id="adaptOff" min="-30" max="30" value="-10"><span class="rv" id="adaptOffV">-10</span></div>
       <div id="niblackKGroup" style="display:none">
-        <label style="margin-top:4px">k (noise sensitivity)</label>
+        <label style="margin-top:4px">k (noise sensitivity)
+          <span class="help-tip">?<span class="tip-text">Controls how much local contrast variation affects the threshold. More negative = more sensitive to faint features.</span></span>
+        </label>
         <div class="rr"><input type="range" id="niblackK" min="-100" max="100" value="-20" step="5"><span class="rv" id="niblackKV">-0.20</span></div>
         <div id="sauvolaRGroup" style="display:none">
-          <label style="margin-top:4px">R (dynamic range)</label>
+          <label style="margin-top:4px">R (dynamic range)
+            <span class="help-tip">?<span class="tip-text">Expected dynamic range of the standard deviation. Higher values make the method less sensitive to local contrast.</span></span>
+          </label>
           <div class="rr"><input type="range" id="sauvolaR" min="32" max="255" value="128"><span class="rv" id="sauvolaRV">128</span></div>
         </div>
       </div>
@@ -398,52 +454,70 @@ input[type=text],input[type=number]{width:100%;padding:6px 8px;border:1px solid 
     <div class="stab-label" id="stabLabel" style="display:none"></div>
 
     <div class="cg">
-      <label>Min Colony Size (px)</label>
+      <label>Min Colony Size (px)
+        <span class="help-tip">?<span class="tip-text">Smallest object to count as a colony (in pixels). Increase to ignore tiny specks and debris. A typical colony is 50–500 px depending on image resolution.</span></span>
+      </label>
       <div class="rr"><input type="range" id="minSz" min="1" max="500" value="20"><span class="rv" id="minSzV">20</span></div>
     </div>
     <div class="cg">
-      <label>Max Colony Size (px)</label>
+      <label>Max Colony Size (px)
+        <span class="help-tip">?<span class="tip-text">Largest object to count as a single colony. Objects bigger than this are rejected (they may be merged clusters or staining artefacts).</span></span>
+      </label>
       <div class="rr"><input type="range" id="maxSz" min="10" max="10000" value="3000"><span class="rv" id="maxSzV">3000</span></div>
     </div>
-    <div class="cg">
-      <label>Min Circularity (4&pi;A/P&sup2;)</label>
+    <div class="cg adv-param">
+      <label>Min Circularity (4πA/P²)
+        <span class="help-tip">?<span class="tip-text">How round a colony must be. 1.0 = perfect circle, 0 = any shape. Increase to reject elongated scratches or irregular debris. Default 0.15 is permissive.</span></span>
+      </label>
       <div class="rr"><input type="range" id="minCirc" min="0" max="95" value="15" step="5"><span class="rv" id="minCircV">0.15</span></div>
     </div>
-    <div class="cg">
-      <label>Min Solidity (A/ConvexA)</label>
+    <div class="cg adv-param">
+      <label>Min Solidity (A/ConvexA)
+        <span class="help-tip">?<span class="tip-text">How "filled in" a colony is. 1.0 = completely solid, lower = has holes or jagged edges. Increase to reject hollow or irregular objects. Default 0.50 works for most CFA.</span></span>
+      </label>
       <div class="rr"><input type="range" id="minSol" min="0" max="95" value="50" step="5"><span class="rv" id="minSolV">0.50</span></div>
     </div>
-    <div class="cg">
-      <label>Max Eccentricity (0=circle, 1=line)</label>
+    <div class="cg adv-param">
+      <label>Max Eccentricity (0=circle, 1=line)
+        <span class="help-tip">?<span class="tip-text">How elongated a colony can be. 0 = only perfect circles, 1 = any shape including lines. Decrease to reject scratches and streaks. Default 0.95 is very permissive.</span></span>
+      </label>
       <div class="rr"><input type="range" id="maxEcc" min="50" max="100" value="95" step="1"><span class="rv" id="maxEccV">0.95</span></div>
     </div>
-    <div class="cbr"><input type="checkbox" id="borderRej" checked><label for="borderRej">Reject border-touching objects</label></div>
+    <div class="cbr"><input type="checkbox" id="borderRej" checked><label for="borderRej">Reject border-touching objects</label>
+      <span class="help-tip">?<span class="tip-text">Removes colonies that touch the edge of the image or ROI. These are usually partial and shouldn't be counted.</span></span>
+    </div>
 
-    <div class="cbr"><input type="checkbox" id="wsChk" checked><label for="wsChk">Split touching colonies (watershed)</label></div>
-    <div id="wsGroup">
+    <div class="cbr"><input type="checkbox" id="wsChk" checked><label for="wsChk">Split touching colonies (watershed)</label>
+      <span class="help-tip">?<span class="tip-text">Automatically separates overlapping colonies that were merged into one blob. Uses watershed algorithm. Keep ON for dense plates.</span></span>
+    </div>
+    <div id="wsGroup" class="adv-param">
       <div class="cg">
-        <label>Seed Sensitivity (h-maxima suppression)</label>
+        <label>Seed Sensitivity (h-maxima suppression)
+          <span class="help-tip">?<span class="tip-text">Controls how aggressively the watershed splits colonies. Lower = more splits (may over-split), higher = fewer splits (may under-split). Default 0.15 is balanced.</span></span>
+        </label>
         <div class="rr"><input type="range" id="wsH" min="5" max="50" value="15" step="1"><span class="rv" id="wsHV">0.15</span></div>
       </div>
       <div class="cg">
-        <label>Min Peak Distance (fraction of est. radius)</label>
+        <label>Min Peak Distance (fraction of est. radius)
+          <span class="help-tip">?<span class="tip-text">Minimum distance between two colony centers for them to be split. Higher = only splits clearly separate colonies. Lower = splits tighter clusters.</span></span>
+        </label>
         <div class="rr"><input type="range" id="wsPD" min="20" max="100" value="60" step="5"><span class="rv" id="wsPDV">0.60</span></div>
       </div>
     </div>
 
-    <button class="btn btn-primary" id="detectBtn" disabled onclick="runDetection()">&#9654; Auto-Detect</button>
+    <button class="btn btn-primary" id="detectBtn" disabled onclick="runDetection()">▶ Auto-Detect</button>
   </div>
 
   <!-- Manual -->
   <div class="panel">
-    <h2>&#9314; Manual Correction</h2>
+    <h2>③ Manual Correction</h2>
     <div class="mode-toggle">
       <button id="mAdd" class="active" onclick="setMode('add')">+ Add</button>
       <button id="mRem" onclick="setMode('remove')">- Remove</button>
     </div>
     <p style="font-size:.7rem;color:var(--muted);margin-bottom:6px"><b>Add:</b> click to mark. <b>Remove:</b> click near a marker.</p>
-    <button class="btn btn-outline btn-sm" onclick="undo()">&#8630; Undo</button>
-    <button class="btn btn-outline btn-sm" onclick="redo()">&#8631; Redo</button>
+    <button class="btn btn-outline btn-sm" onclick="undo()">↶ Undo</button>
+    <button class="btn btn-outline btn-sm" onclick="redo()">↷ Redo</button>
     <button class="btn btn-danger btn-sm" id="clrManBtn" disabled onclick="clearManual()">Clear Manual</button>
     <button class="btn btn-outline btn-sm" id="clrAllBtn" disabled onclick="clearAll()">Clear All</button>
   </div>
@@ -498,7 +572,7 @@ input[type=text],input[type=number]{width:100%;padding:6px 8px;border:1px solid 
 
   <!-- Results -->
   <div class="panel">
-    <h2>&#9315; Results</h2>
+    <h2>④ Results</h2>
     <div class="delta-card" id="deltaCard"></div>
     <div class="result-box">
       <div class="count" id="totalCount">0</div>
@@ -514,22 +588,22 @@ input[type=text],input[type=number]{width:100%;padding:6px 8px;border:1px solid 
       <input type="text" id="sampleName" placeholder="e.g., Control, 2Gy, 4Gy...">
     </div>
     <div class="cg">
-      <label>Pixel Calibration (optional, &micro;m/px)</label>
+      <label>Pixel Calibration (optional, μm/px)</label>
       <input type="number" id="calibration" placeholder="e.g., 10.5" step="any" min="0">
     </div>
     <button class="btn btn-outline" id="saveSmpBtn" disabled onclick="saveSample()">Save to Sample List</button>
     <div id="sampleList" style="margin-top:6px"></div>
 
-    <button class="btn btn-success" id="expSumBtn" disabled onclick="exportSummaryCSV()">&#128190; Summary CSV</button>
-    <button class="btn btn-outline" id="expDetBtn" disabled onclick="exportDetailCSV()">&#128190; Colony Details CSV</button>
-    <button class="btn btn-outline" id="expJsonBtn" disabled onclick="exportSessionJSON()">&#128190; Session JSON (audit)</button>
+    <button class="btn btn-success" id="expSumBtn" disabled onclick="exportSummaryCSV()">💾 Summary CSV</button>
+    <button class="btn btn-outline" id="expDetBtn" disabled onclick="exportDetailCSV()">💾 Colony Details CSV</button>
+    <button class="btn btn-outline" id="expJsonBtn" disabled onclick="exportSessionJSON()">💾 Session JSON (audit)</button>
   </div>
 
   <!-- Citation -->
   <div class="panel">
     <div class="citation">
       <strong>How to cite:</strong><br>
-      ColonyCounter v4.1.0 &mdash; An open-source browser-based colony formation assay tool with explainable automated detection, adaptive thresholding, shape-based filtering, watershed splitting, 6-well plate auto-detection, batch processing, and manual curation.<br><br>
+      ColonyCounter v4.1.0 — An open-source browser-based colony formation assay tool with explainable automated detection, adaptive thresholding, shape-based filtering, watershed splitting, 6-well plate auto-detection, batch processing, and manual curation.<br><br>
       <em>"Colonies were counted using ColonyCounter v4.1.0, featuring Otsu/adaptive thresholding, background subtraction, circularity/solidity/eccentricity filtering, distance-transform watershed splitting, automated 6-well plate detection via circle Hough transform, batch processing, and manual curation. All detection parameters and per-colony metrics are reported in exported data."</em>
     </div>
   </div>
@@ -722,7 +796,7 @@ function loadImage(f){
       document.getElementById('roiBtn').disabled=false;
       document.getElementById('clrAllBtn').disabled=false;
       document.getElementById('headerFile').textContent=f.name;
-      uploadArea.innerHTML='<div style="font-size:1.3rem">&#9989;</div><p><b>'+esc(f.name)+'</b> ('+imgW+'&times;'+imgH+')<br>Click to change</p>';
+      uploadArea.innerHTML='<div style="font-size:1.3rem">✅</div><p><b>'+esc(f.name)+'</b> ('+imgW+'×'+imgH+')<br>Click to change</p>';
       render();updateCounts();hideInspector();
       toast('Image loaded — draw ROI (optional), then detect');
     };
@@ -780,6 +854,11 @@ function inspectAt(px,py){
   for(const o of allObjects){const d=Math.hypot(o.x-px,o.y-py);if(d<bd){bd=d;best=o}}
   for(const o of manualCols){const d=Math.hypot(o.x-px,o.y-py);if(d<bd){bd=d;best={...o,status:'manual',area:0,perimeter:0,circularity:0,solidity:0,eccentricity:0,meanIntensity:0,borderDist:0,confidence:1,reasons:[]}}}
   if(best&&bd<Math.max(40,imgW/20)){showInspector(best)}
+}
+function inspectObject(id){
+  let o=allObjects.find(ob=>ob.id===id);
+  if(!o){const m=manualCols.find(c=>c.id===id);if(m)o={...m,status:'manual',area:0,perimeter:0,circularity:0,solidity:0,eccentricity:0,meanIntensity:0,borderDist:0,confidence:1,reasons:[]};}
+  if(o)showInspector(o);
 }
 
 // =================================================================
@@ -1127,12 +1206,12 @@ function _runPipeline(blurRadius,threshMeth,threshManual,adaptW,adaptO,minSize,m
   {
     const {labels:tmpL,comps:tmpC}=labelAndFeature(binMask,imgW,imgH,null);
     const minClean=Math.max(3,Math.floor(minSize/4));
-    for(let i=0;i<tmpC.length;i++){if(tmpC[i].pixels<minClean)for(const pi of tmpC[i].pxList)binMask[pi]=0}
+    {const smallSet=new Set();for(let i=0;i<tmpC.length;i++)if(tmpC[i].pixels<minClean)smallSet.add(i+1);if(smallSet.size>0)for(let j=0;j<imgW*imgH;j++)if(smallSet.has(tmpL[j]))binMask[j]=0}
     // Fill small holes (invert, remove small cc, invert back)
     const inv=new Uint8Array(imgW*imgH);
     for(let i=0;i<imgW*imgH;i++)inv[i]=binMask[i]?0:(roiMask[i]?1:0);
-    const {comps:holeC}=labelAndFeature(inv,imgW,imgH,null);
-    for(const hc of holeC){if(hc.pixels<minClean*2)for(const pi of hc.pxList)binMask[pi]=1}
+    const {labels:holeL,comps:holeC}=labelAndFeature(inv,imgW,imgH,null);
+    {const hSmall=new Set();for(let i=0;i<holeC.length;i++)if(holeC[i].pixels<minClean*2)hSmall.add(i+1);if(hSmall.size>0)for(let j=0;j<imgW*imgH;j++)if(hSmall.has(holeL[j]))binMask[j]=1}
   }
   markP('sClean');
 
@@ -1327,8 +1406,8 @@ function render(){
   }
 
   // Manual (magenta crosshair + ring)
-  if(legendVis.manual){
   const mr=Math.max(7,imgW/120);
+  if(legendVis.manual){
   X.strokeStyle=cssVar('--magenta');X.lineWidth=lw;
   for(const c of manualCols){
     X.beginPath();X.arc(c.x,c.y,mr,0,Math.PI*2);X.stroke();
@@ -1435,18 +1514,18 @@ function updateQCFlags(){
   const flags=[];
 
   // Overcrowded check
-  if(acc.length>200)flags.push({t:'warn',m:'&#9888; High density ('+acc.length+' colonies) — possible undercount from merges'});
+  if(acc.length>200)flags.push({t:'warn',m:'⚠ High density ('+acc.length+' colonies) — possible undercount from merges'});
   // Ambiguous fraction
-  if(amb.length>acc.length*.15&&amb.length>3)flags.push({t:'warn',m:'&#9888; '+amb.length+' ambiguous objects ('+Math.round(amb.length/(acc.length+amb.length)*100)+'%) — review manually'});
+  if(amb.length>acc.length*.15&&amb.length>3)flags.push({t:'warn',m:'⚠ '+amb.length+' ambiguous objects ('+Math.round(amb.length/(acc.length+amb.length)*100)+'%) — review manually'});
   // Low contrast check
   if(grayD){
     let mn=255,mx=0;const n=imgW*imgH;for(let i=0;i<n;i++){if(grayD[i]<mn)mn=grayD[i];if(grayD[i]>mx)mx=grayD[i]}
-    if(mx-mn<60)flags.push({t:'warn',m:'&#9888; Low contrast (range: '+Math.round(mn)+'-'+Math.round(mx)+') — consider CLAHE or re-staining'});
+    if(mx-mn<60)flags.push({t:'warn',m:'⚠ Low contrast (range: '+Math.round(mn)+'-'+Math.round(mx)+') — consider CLAHE or re-staining'});
   }
   // No ROI
-  if(!roi)flags.push({t:'warn',m:'&#9888; No ROI set — background artifacts may be counted'});
+  if(!roi)flags.push({t:'warn',m:'⚠ No ROI set — background artifacts may be counted'});
 
-  if(!flags.length)flags.push({t:'ok',m:'&#10003; No QC warnings'});
+  if(!flags.length)flags.push({t:'ok',m:'✓ No QC warnings'});
 
   for(const f of flags){const d=document.createElement('div');d.className='qc-flag '+f.t;d.innerHTML=f.m;el.appendChild(d)}
 }
@@ -1462,6 +1541,51 @@ function toggleLegend(el){
   legendVis[cat]=!legendVis[cat];
   el.classList.toggle('off',!legendVis[cat]);
   render();
+}
+
+// ---- Simple / Advanced mode ----
+let detectModeSimple=true;
+function setDetectMode(mode){
+  detectModeSimple=(mode==='simple');
+  const panel=document.getElementById('detectionPanel');
+  panel.classList.toggle('simple-mode',detectModeSimple);
+  const btns=document.querySelectorAll('#modeSwitch button');
+  btns[0].classList.toggle('active',detectModeSimple);
+  btns[1].classList.toggle('active',!detectModeSimple);
+}
+// Start in simple mode
+document.addEventListener('DOMContentLoaded',()=>{setDetectMode('simple')});
+
+// ---- Presets ----
+const PRESETS={
+  cv:{name:'Crystal Violet',blur:2,bgSub:true,invert:true,thresh:'otsu',minSz:20,maxSz:3000,circ:15,sol:50,ecc:95,border:true,ws:true,wsH:15,wsPD:60},
+  mb:{name:'Methylene Blue',blur:3,bgSub:true,invert:true,thresh:'otsu',minSz:15,maxSz:2500,circ:10,sol:40,ecc:95,border:true,ws:true,wsH:12,wsPD:55},
+  sparse:{name:'Sparse',blur:1,bgSub:true,invert:true,thresh:'otsu',minSz:30,maxSz:5000,circ:10,sol:40,ecc:98,border:true,ws:false,wsH:15,wsPD:60},
+  dense:{name:'Dense',blur:2,bgSub:true,invert:true,thresh:'otsu',minSz:15,maxSz:2000,circ:20,sol:55,ecc:90,border:true,ws:true,wsH:10,wsPD:50}
+};
+function applyPreset(key){
+  const p=PRESETS[key]; if(!p)return;
+  $('blurR').value=p.blur;$('blurRV').textContent=p.blur;
+  $('bgSubChk').checked=p.bgSub;
+  $('invertChk').checked=p.invert;
+  $('threshMethod').value=p.thresh;$('threshMethod').dispatchEvent(new Event('change'));
+  $('minSz').value=p.minSz;$('minSzV').textContent=p.minSz;
+  $('maxSz').value=p.maxSz;$('maxSzV').textContent=p.maxSz;
+  $('minCirc').value=p.circ;$('minCircV').textContent=(p.circ/100).toFixed(2);
+  $('minSol').value=p.sol;$('minSolV').textContent=(p.sol/100).toFixed(2);
+  $('maxEcc').value=p.ecc;$('maxEccV').textContent=(p.ecc/100).toFixed(2);
+  $('borderRej').checked=p.border;
+  $('wsChk').checked=p.ws;
+  $('wsH').value=p.wsH;$('wsHV').textContent=(p.wsH/100).toFixed(2);
+  $('wsPD').value=p.wsPD;$('wsPDV').textContent=(p.wsPD/100).toFixed(2);
+  // Highlight active preset
+  document.querySelectorAll('.preset-btn').forEach(b=>b.classList.remove('active-preset'));
+  const btns=document.querySelectorAll('.preset-btn');
+  const keys=Object.keys(PRESETS);
+  const idx=keys.indexOf(key);
+  if(idx>=0&&btns[idx])btns[idx].classList.add('active-preset');
+  // Show toast
+  toast('Preset "'+p.name+'" applied. Press Auto-Detect to run.');
 }
 
 function setOverlay(m){overlayMode=m;['tbOrig','tbGray','tbMask','tbAccRej'].forEach(id=>{$(id).classList.toggle('active',id==='tb'+{original:'Orig',gray:'Gray',mask:'Mask',accrej:'AccRej'}[m])});render()}
@@ -1535,7 +1659,7 @@ function renderSamples(){
   const el=$('sampleList');el.innerHTML='';
   for(let i=0;i<samples.length;i++){
     const s=samples[i],d=document.createElement('div');d.className='sample-item';
-    d.innerHTML='<span class="nm">'+esc(s.name)+'</span><span class="sc">'+s.total+'</span><button onclick="removeSample('+i+')">&#x2715;</button>';
+    d.innerHTML='<span class="nm">'+esc(s.name)+'</span><span class="sc">'+s.total+'</span><button onclick="removeSample('+i+')">✕</button>';
     el.appendChild(d);
   }
   $('expSumBtn').disabled=!samples.length;$('expDetBtn').disabled=!samples.length;$('expJsonBtn').disabled=!samples.length;
