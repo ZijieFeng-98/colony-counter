@@ -253,7 +253,7 @@ input[type=text],input[type=number]{width:100%;padding:6px 8px;border:1px solid 
 <body>
 
 <header>
-  <div><h1>ColonyCounter</h1><span class="sub">v4.1.0 &mdash; Batch & 6-Well Plate Colony Formation Assay Analysis</span></div>
+  <div><h1>ColonyCounter</h1><span class="sub">v4.1.0 &mdash; Batch &amp; 6-Well Plate Colony Formation Assay Analysis</span></div>
   <div style="font-size:.7rem;opacity:.8"><span id="headerFile"></span></div>
 </header>
 
@@ -271,7 +271,7 @@ input[type=text],input[type=number]{width:100%;padding:6px 8px;border:1px solid 
     <div class="tab-panel active" id="panelSingle">
     <div class="upload-area" id="uploadArea">
       <div style="font-size:1.6rem">&#128247;</div>
-      <p><strong>Click or drag & drop</strong> plate image (JPG, PNG, TIFF)</p>
+      <p><strong>Click or drag &amp; drop</strong> plate image (JPG, PNG, TIFF)</p>
       <input type="file" id="fileInput" accept="image/*" style="display:none">
     </div>
     </div>
@@ -284,7 +284,7 @@ input[type=text],input[type=number]{width:100%;padding:6px 8px;border:1px solid 
       </div>
       <div class="batch-upload" id="batchUploadArea">
         <div style="font-size:1.4rem">&#128194;</div>
-        <p><strong>Click or drag & drop</strong> multiple images</p>
+        <p><strong>Click or drag &amp; drop</strong> multiple images</p>
         <input type="file" id="batchFileInput" accept="image/*" multiple style="display:none">
       </div>
       <div class="batch-file-list" id="batchFileList"></div>
@@ -301,6 +301,10 @@ input[type=text],input[type=number]{width:100%;padding:6px 8px;border:1px solid 
       <div style="margin-top:8px">
         <button class="btn btn-success" id="batchExpSumBtn" disabled onclick="exportBatchSummaryCSV()">&#128190; Batch Summary CSV</button>
         <button class="btn btn-outline" id="batchExpDetBtn" disabled onclick="exportBatchDetailCSV()">&#128190; Batch Details CSV</button>
+      </div>
+      <div id="platePreviewWrap" style="display:none;margin-top:10px;border-radius:6px;overflow:hidden;background:#111827;max-height:50vh;overflow-y:auto">
+        <canvas id="platePreviewCanvas" style="width:100%;display:block"></canvas>
+        <div style="text-align:center;padding:4px 0;color:#94a3b8;font-size:.7rem" id="platePreviewLabel"></div>
       </div>
     </div>
     <div class="toolbar" id="toolbar">
@@ -327,9 +331,9 @@ input[type=text],input[type=number]{width:100%;padding:6px 8px;border:1px solid 
       <span>Compare:</span>
       <select id="cmpMode" onchange="updateCompare()">
         <option value="off">Off</option>
-        <option value="orig_mask">Original ↔ Mask</option>
-        <option value="mask_accrej">Mask ↔ Acc/Rej</option>
-        <option value="orig_accrej">Original ↔ Overlay</option>
+        <option value="orig_mask">Original &harr; Mask</option>
+        <option value="mask_accrej">Mask &harr; Acc/Rej</option>
+        <option value="orig_accrej">Original &harr; Overlay</option>
       </select>
       <input type="range" id="cmpSlider" min="0" max="100" value="50" oninput="renderCompare()">
       <span class="cv" id="cmpPct">50%</span>
@@ -341,7 +345,7 @@ input[type=text],input[type=number]{width:100%;padding:6px 8px;border:1px solid 
       <span class="legend-item" data-cat="manual" onclick="toggleLegend(this)"><span class="legend-dot" style="border-color:var(--magenta);background:transparent"></span>Manual</span>
       <span class="legend-item" data-cat="split" onclick="toggleLegend(this)"><span class="legend-dot" style="border-color:var(--purple);background:rgba(168,85,247,.15)"></span>Split</span>
     </div>
-    <div class="canvas-container" id="canvasContainer"><canvas id="mainCanvas"></canvas><div class="proc-overlay" id="procOverlay"><div class="proc-spinner"></div><div class="proc-text">Detecting colonies...</div></div></div>
+    <div class="canvas-container" id="canvasContainer"><canvas id="mainCanvas"></canvas><div class="proc-overlay" id="procOverlay"><div class="proc-spinner"></div><div class="proc-text">Detecting colonies&hellip;</div></div></div>
     <div class="status-bar"><span id="stL">No image loaded</span><span id="stR"></span></div>
   </div>
 </div>
@@ -350,9 +354,9 @@ input[type=text],input[type=number]{width:100%;padding:6px 8px;border:1px solid 
 <div class="center-col">
   <!-- ROI -->
   <div class="panel">
-    <h2>① Region of Interest <span class="badge">ROI</span></h2>
+    <h2>&#9312; Region of Interest <span class="badge">ROI</span></h2>
     <p style="font-size:.72rem;color:var(--muted);margin-bottom:6px">Draw circular ROI. Only area inside is analyzed.</p>
-    <button class="btn btn-outline btn-sm" id="roiBtn" disabled onclick="startROI()">⊙ Draw ROI</button>
+    <button class="btn btn-outline btn-sm" id="roiBtn" disabled onclick="startROI()">&#9711; Draw ROI</button>
     <button class="btn btn-outline btn-sm" id="clrROI" disabled onclick="clearROI()">Clear</button>
     <div class="cg" style="margin-top:6px">
       <label>Edge Exclusion Margin (%)
@@ -365,7 +369,7 @@ input[type=text],input[type=number]{width:100%;padding:6px 8px;border:1px solid 
 
   <!-- Detection -->
   <div class="panel" id="detectionPanel">
-    <h2>② Detection <span class="badge">Pipeline</span></h2>
+    <h2>&#9313; Detection <span class="badge">Pipeline</span></h2>
     <div class="pipeline" id="pipeSteps">
       <span class="pstep" id="sGray">Gray</span>
       <span class="pstep" id="sBlur">Blur</span>
@@ -422,7 +426,7 @@ input[type=text],input[type=number]{width:100%;padding:6px 8px;border:1px solid 
 
     <div class="cg adv-param" id="threshManualGroup">
       <label>Threshold Value
-        <span class="help-tip">?<span class="tip-text">Manual brightness cutoff (0–255). Pixels darker than this become "colony". Only used when Threshold Method = Manual. The histogram below shows where the auto threshold sits.</span></span>
+        <span class="help-tip">?<span class="tip-text">Manual brightness cutoff (0&ndash;255). Pixels darker than this become "colony". Only used when Threshold Method = Manual. The histogram below shows where the auto threshold sits.</span></span>
       </label>
       <div class="rr"><input type="range" id="threshVal" min="1" max="255" value="128"><span class="rv" id="threshValV">128</span></div>
     </div>
@@ -455,7 +459,7 @@ input[type=text],input[type=number]{width:100%;padding:6px 8px;border:1px solid 
 
     <div class="cg">
       <label>Min Colony Size (px)
-        <span class="help-tip">?<span class="tip-text">Smallest object to count as a colony (in pixels). Increase to ignore tiny specks and debris. A typical colony is 50–500 px depending on image resolution.</span></span>
+        <span class="help-tip">?<span class="tip-text">Smallest object to count as a colony (in pixels). Increase to ignore tiny specks and debris. A typical colony is 50&ndash;500 px depending on image resolution.</span></span>
       </label>
       <div class="rr"><input type="range" id="minSz" min="1" max="500" value="20"><span class="rv" id="minSzV">20</span></div>
     </div>
@@ -466,7 +470,7 @@ input[type=text],input[type=number]{width:100%;padding:6px 8px;border:1px solid 
       <div class="rr"><input type="range" id="maxSz" min="10" max="10000" value="3000"><span class="rv" id="maxSzV">3000</span></div>
     </div>
     <div class="cg adv-param">
-      <label>Min Circularity (4πA/P²)
+      <label>Min Circularity (4&pi;A/P&sup2;)
         <span class="help-tip">?<span class="tip-text">How round a colony must be. 1.0 = perfect circle, 0 = any shape. Increase to reject elongated scratches or irregular debris. Default 0.15 is permissive.</span></span>
       </label>
       <div class="rr"><input type="range" id="minCirc" min="0" max="95" value="15" step="5"><span class="rv" id="minCircV">0.15</span></div>
@@ -505,19 +509,19 @@ input[type=text],input[type=number]{width:100%;padding:6px 8px;border:1px solid 
       </div>
     </div>
 
-    <button class="btn btn-primary" id="detectBtn" disabled onclick="runDetection()">▶ Auto-Detect</button>
+    <button class="btn btn-primary" id="detectBtn" disabled onclick="runDetection()">&#9654; Auto-Detect</button>
   </div>
 
   <!-- Manual -->
   <div class="panel">
-    <h2>③ Manual Correction</h2>
+    <h2>&#9314; Manual Correction</h2>
     <div class="mode-toggle">
       <button id="mAdd" class="active" onclick="setMode('add')">+ Add</button>
       <button id="mRem" onclick="setMode('remove')">- Remove</button>
     </div>
     <p style="font-size:.7rem;color:var(--muted);margin-bottom:6px"><b>Add:</b> click to mark. <b>Remove:</b> click near a marker.</p>
-    <button class="btn btn-outline btn-sm" onclick="undo()">↶ Undo</button>
-    <button class="btn btn-outline btn-sm" onclick="redo()">↷ Redo</button>
+    <button class="btn btn-outline btn-sm" onclick="undo()">&#8630; Undo</button>
+    <button class="btn btn-outline btn-sm" onclick="redo()">&#8631; Redo</button>
     <button class="btn btn-danger btn-sm" id="clrManBtn" disabled onclick="clearManual()">Clear Manual</button>
     <button class="btn btn-outline btn-sm" id="clrAllBtn" disabled onclick="clearAll()">Clear All</button>
   </div>
@@ -572,7 +576,7 @@ input[type=text],input[type=number]{width:100%;padding:6px 8px;border:1px solid 
 
   <!-- Results -->
   <div class="panel">
-    <h2>④ Results</h2>
+    <h2>&#9315; Results</h2>
     <div class="delta-card" id="deltaCard"></div>
     <div class="result-box">
       <div class="count" id="totalCount">0</div>
@@ -588,22 +592,22 @@ input[type=text],input[type=number]{width:100%;padding:6px 8px;border:1px solid 
       <input type="text" id="sampleName" placeholder="e.g., Control, 2Gy, 4Gy...">
     </div>
     <div class="cg">
-      <label>Pixel Calibration (optional, μm/px)</label>
+      <label>Pixel Calibration (optional, &micro;m/px)</label>
       <input type="number" id="calibration" placeholder="e.g., 10.5" step="any" min="0">
     </div>
     <button class="btn btn-outline" id="saveSmpBtn" disabled onclick="saveSample()">Save to Sample List</button>
     <div id="sampleList" style="margin-top:6px"></div>
 
-    <button class="btn btn-success" id="expSumBtn" disabled onclick="exportSummaryCSV()">💾 Summary CSV</button>
-    <button class="btn btn-outline" id="expDetBtn" disabled onclick="exportDetailCSV()">💾 Colony Details CSV</button>
-    <button class="btn btn-outline" id="expJsonBtn" disabled onclick="exportSessionJSON()">💾 Session JSON (audit)</button>
+    <button class="btn btn-success" id="expSumBtn" disabled onclick="exportSummaryCSV()">&#128190; Summary CSV</button>
+    <button class="btn btn-outline" id="expDetBtn" disabled onclick="exportDetailCSV()">&#128190; Colony Details CSV</button>
+    <button class="btn btn-outline" id="expJsonBtn" disabled onclick="exportSessionJSON()">&#128190; Session JSON (audit)</button>
   </div>
 
   <!-- Citation -->
   <div class="panel">
     <div class="citation">
       <strong>How to cite:</strong><br>
-      ColonyCounter v4.1.0 — An open-source browser-based colony formation assay tool with explainable automated detection, adaptive thresholding, shape-based filtering, watershed splitting, 6-well plate auto-detection, batch processing, and manual curation.<br><br>
+      ColonyCounter v4.1.0 &mdash; An open-source browser-based colony formation assay tool with explainable automated detection, adaptive thresholding, shape-based filtering, watershed splitting, 6-well plate auto-detection, batch processing, and manual curation.<br><br>
       <em>"Colonies were counted using ColonyCounter v4.1.0, featuring Otsu/adaptive thresholding, background subtraction, circularity/solidity/eccentricity filtering, distance-transform watershed splitting, automated 6-well plate detection via circle Hough transform, batch processing, and manual curation. All detection parameters and per-colony metrics are reported in exported data."</em>
     </div>
   </div>
@@ -796,7 +800,7 @@ function loadImage(f){
       document.getElementById('roiBtn').disabled=false;
       document.getElementById('clrAllBtn').disabled=false;
       document.getElementById('headerFile').textContent=f.name;
-      uploadArea.innerHTML='<div style="font-size:1.3rem">✅</div><p><b>'+esc(f.name)+'</b> ('+imgW+'×'+imgH+')<br>Click to change</p>';
+      uploadArea.innerHTML='<div style="font-size:1.3rem">&#9989;</div><p><b>'+esc(f.name)+'</b> ('+imgW+'&times;'+imgH+')<br>Click to change</p>';
       render();updateCounts();hideInspector();
       toast('Image loaded — draw ROI (optional), then detect');
     };
@@ -1514,18 +1518,18 @@ function updateQCFlags(){
   const flags=[];
 
   // Overcrowded check
-  if(acc.length>200)flags.push({t:'warn',m:'⚠ High density ('+acc.length+' colonies) — possible undercount from merges'});
+  if(acc.length>200)flags.push({t:'warn',m:'&#9888; High density ('+acc.length+' colonies) — possible undercount from merges'});
   // Ambiguous fraction
-  if(amb.length>acc.length*.15&&amb.length>3)flags.push({t:'warn',m:'⚠ '+amb.length+' ambiguous objects ('+Math.round(amb.length/(acc.length+amb.length)*100)+'%) — review manually'});
+  if(amb.length>acc.length*.15&&amb.length>3)flags.push({t:'warn',m:'&#9888; '+amb.length+' ambiguous objects ('+Math.round(amb.length/(acc.length+amb.length)*100)+'%) — review manually'});
   // Low contrast check
   if(grayD){
     let mn=255,mx=0;const n=imgW*imgH;for(let i=0;i<n;i++){if(grayD[i]<mn)mn=grayD[i];if(grayD[i]>mx)mx=grayD[i]}
-    if(mx-mn<60)flags.push({t:'warn',m:'⚠ Low contrast (range: '+Math.round(mn)+'-'+Math.round(mx)+') — consider CLAHE or re-staining'});
+    if(mx-mn<60)flags.push({t:'warn',m:'&#9888; Low contrast (range: '+Math.round(mn)+'-'+Math.round(mx)+') — consider CLAHE or re-staining'});
   }
   // No ROI
-  if(!roi)flags.push({t:'warn',m:'⚠ No ROI set — background artifacts may be counted'});
+  if(!roi)flags.push({t:'warn',m:'&#9888; No ROI set — background artifacts may be counted'});
 
-  if(!flags.length)flags.push({t:'ok',m:'✓ No QC warnings'});
+  if(!flags.length)flags.push({t:'ok',m:'&#10003; No QC warnings'});
 
   for(const f of flags){const d=document.createElement('div');d.className='qc-flag '+f.t;d.innerHTML=f.m;el.appendChild(d)}
 }
@@ -1659,7 +1663,7 @@ function renderSamples(){
   const el=$('sampleList');el.innerHTML='';
   for(let i=0;i<samples.length;i++){
     const s=samples[i],d=document.createElement('div');d.className='sample-item';
-    d.innerHTML='<span class="nm">'+esc(s.name)+'</span><span class="sc">'+s.total+'</span><button onclick="removeSample('+i+')">✕</button>';
+    d.innerHTML='<span class="nm">'+esc(s.name)+'</span><span class="sc">'+s.total+'</span><button onclick="removeSample('+i+')">&#x2715;</button>';
     el.appendChild(d);
   }
   $('expSumBtn').disabled=!samples.length;$('expDetBtn').disabled=!samples.length;$('expJsonBtn').disabled=!samples.length;
@@ -2110,95 +2114,192 @@ function updateBatchUI(){
 }
 
 // --- 6-Well Plate Detection ---
-// Detect 6 circular wells in an image using gradient-based circle Hough transform
+// Detect 6 circular wells using gradient-based circle Hough transform.
+// Uses aggressive blur to suppress colony texture and focus on well rim edges.
 function detectWells(img,w,h){
-  // Draw image to offscreen canvas, get pixel data
   const oc=document.createElement('canvas');oc.width=w;oc.height=h;
   const ox=oc.getContext('2d');ox.drawImage(img,0,0);
   const id=ox.getImageData(0,0,w,h).data;
-  // Grayscale
-  const gray=new Float32Array(w*h);
-  for(let i=0;i<w*h;i++)gray[i]=0.299*id[i*4]+0.587*id[i*4+1]+0.114*id[i*4+2];
-  // Gaussian blur (sigma~3)
-  const blurred=gaussBlur1D(gray,w,h,3);
-  // Sobel gradient magnitude
-  const grad=new Float32Array(w*h);
-  for(let y=1;y<h-1;y++)for(let x=1;x<w-1;x++){
-    const gx=-blurred[(y-1)*w+x-1]+blurred[(y-1)*w+x+1]-2*blurred[y*w+x-1]+2*blurred[y*w+x+1]-blurred[(y+1)*w+x-1]+blurred[(y+1)*w+x+1];
-    const gy=-blurred[(y-1)*w+x-1]-2*blurred[(y-1)*w+x]+blurred[(y+1)*w+x-1]+2*blurred[(y+1)*w+x]+blurred[(y+1)*w+x+1]-blurred[(y-1)*w+x+1];
-    grad[y*w+x]=Math.sqrt(gx*gx+gy*gy);
-  }
-  // Threshold gradient for edge pixels
-  let gMax=0;for(let i=0;i<grad.length;i++)if(grad[i]>gMax)gMax=grad[i];
-  const gThresh=gMax*0.15;
-  const edgePx=[];
-  // Subsample edges for speed
-  for(let y=2;y<h-2;y+=2)for(let x=2;x<w-2;x+=2)if(grad[y*w+x]>gThresh)edgePx.push({x,y});
 
-  // Expected well radius range: each well is ~1/4 to 1/3 of image width
-  const minR=Math.round(w*0.08), maxR=Math.round(w*0.25);
-  const rStep=Math.max(1,Math.round((maxR-minR)/30));
-  // Accumulator: coarse grid
-  const cellSz=Math.max(4,Math.round(w/200));
-  const aw=Math.ceil(w/cellSz),ah=Math.ceil(h/cellSz),ar=Math.ceil((maxR-minR)/rStep)+1;
+  // Downscale for speed (max dim 800px)
+  const scale=Math.min(1,800/Math.max(w,h));
+  const sw=Math.round(w*scale),sh=Math.round(h*scale);
+  let gray;
+  if(scale<1){
+    const sc=document.createElement('canvas');sc.width=sw;sc.height=sh;
+    const sx=sc.getContext('2d');sx.drawImage(img,0,0,sw,sh);
+    const sd=sx.getImageData(0,0,sw,sh).data;
+    gray=new Float32Array(sw*sh);
+    for(let i=0;i<sw*sh;i++)gray[i]=0.299*sd[i*4]+0.587*sd[i*4+1]+0.114*sd[i*4+2];
+  }else{
+    gray=new Float32Array(w*h);
+    for(let i=0;i<w*h;i++)gray[i]=0.299*id[i*4]+0.587*id[i*4+1]+0.114*id[i*4+2];
+  }
+  const ew=scale<1?sw:w, eh=scale<1?sh:h;
+
+  // Strong blur (sigma=5) to suppress colony texture, keep well rims
+  const blurred=gaussBlur1D(gray,ew,eh,5);
+
+  // Sobel gradient
+  const grad=new Float32Array(ew*eh);
+  for(let y=1;y<eh-1;y++)for(let x=1;x<ew-1;x++){
+    const gx=-blurred[(y-1)*ew+x-1]+blurred[(y-1)*ew+x+1]-2*blurred[y*ew+x-1]+2*blurred[y*ew+x+1]-blurred[(y+1)*ew+x-1]+blurred[(y+1)*ew+x+1];
+    const gy=-blurred[(y-1)*ew+x-1]-2*blurred[(y-1)*ew+x]+blurred[(y+1)*ew+x-1]+2*blurred[(y+1)*ew+x]+blurred[(y+1)*ew+x+1]-blurred[(y-1)*ew+x+1];
+    grad[y*ew+x]=Math.sqrt(gx*gx+gy*gy);
+  }
+
+  // Edge threshold: use percentile-based (top 15% of gradient values)
+  const gVals=Array.from(grad).filter(v=>v>0).sort((a,b)=>a-b);
+  const gThresh=gVals[Math.floor(gVals.length*0.85)]||1;
+  const edgePx=[];
+  for(let y=2;y<eh-2;y+=2)for(let x=2;x<ew-2;x+=2)if(grad[y*ew+x]>gThresh)edgePx.push({x,y});
+
+  // Expected well radius depends on orientation
+  const isPortrait=ew<eh;
+  const minR=Math.round(Math.min(ew,eh)*0.08);
+  const maxR=Math.round(Math.min(ew,eh)*0.30);
+  const rStep=Math.max(1,Math.round((maxR-minR)/40));
+
+  // Accumulator
+  const cellSz=Math.max(3,Math.round(ew/250));
+  const aw=Math.ceil(ew/cellSz),ah=Math.ceil(eh/cellSz),ar=Math.ceil((maxR-minR)/rStep)+1;
   const acc=new Int32Array(aw*ah*ar);
   for(const p of edgePx){
     for(let ri=0;ri<ar;ri++){
       const r=minR+ri*rStep;
-      // Vote for 8 directions
-      for(let a=0;a<8;a++){
-        const ang=a*Math.PI/4;
+      for(let a=0;a<12;a++){  // 12 directions for better accuracy
+        const ang=a*Math.PI/6;
         const cx2=Math.round((p.x+r*Math.cos(ang))/cellSz);
         const cy2=Math.round((p.y+r*Math.sin(ang))/cellSz);
         if(cx2>=0&&cx2<aw&&cy2>=0&&cy2<ah)acc[(cy2*aw+cx2)*ar+ri]++;
       }
     }
   }
-  // Find peaks in accumulator
+
+  // Find peaks (lower threshold: 0.004 instead of 0.008)
   const peaks=[];
+  const minVotes=Math.max(8,Math.round(edgePx.length*0.004));
   for(let cy2=1;cy2<ah-1;cy2++)for(let cx2=1;cx2<aw-1;cx2++)for(let ri=0;ri<ar;ri++){
     const v=acc[(cy2*aw+cx2)*ar+ri];
-    if(v<edgePx.length*0.008)continue; // min votes
+    if(v<minVotes)continue;
     let isMax=true;
     for(let dy=-1;dy<=1&&isMax;dy++)for(let dx=-1;dx<=1&&isMax;dx++){
       if(!dy&&!dx)continue;
       const ny=cy2+dy,nx=cx2+dx;
       if(ny>=0&&ny<ah&&nx>=0&&nx<aw&&acc[(ny*aw+nx)*ar+ri]>v)isMax=false;
     }
-    if(isMax)peaks.push({cx:cx2*cellSz+cellSz/2,cy:cy2*cellSz+cellSz/2,r:minR+ri*rStep,votes:v});
+    if(isMax)peaks.push({cx:(cx2*cellSz+cellSz/2)/scale,cy:(cy2*cellSz+cellSz/2)/scale,r:(minR+ri*rStep)/scale,votes:v});
   }
   peaks.sort((a,b)=>b.votes-a.votes);
-  // Non-maximum suppression: keep peaks separated by > minR
+
+  // Non-maximum suppression
+  const suppressR=minR/scale;
   const kept=[];
   for(const p of peaks){
     let ok=true;
-    for(const k of kept)if(Math.hypot(p.cx-k.cx,p.cy-k.cy)<minR){ok=false;break}
+    for(const k of kept)if(Math.hypot(p.cx-k.cx,p.cy-k.cy)<suppressR){ok=false;break}
     if(ok)kept.push(p);
     if(kept.length>=6)break;
   }
-  if(kept.length<6){
-    // Fallback: assume regular 2×3 grid based on image dimensions
+
+  if(kept.length<4){
+    // Fallback: regular grid
     return fallbackWellGrid(w,h);
   }
-  // Sort into 2×3 grid: top row (3) + bottom row (3) by y then x
-  kept.sort((a,b)=>a.cy-b.cy);
-  const topRow=kept.slice(0,3).sort((a,b)=>a.cx-b.cx);
-  const botRow=kept.slice(3,6).sort((a,b)=>a.cx-b.cx);
-  const labels=['A1','A2','A3','B1','B2','B3'];
-  const wells=[...topRow,...botRow].map((w2,i)=>({cx:Math.round(w2.cx),cy:Math.round(w2.cy),r:Math.round(w2.r),label:labels[i]}));
+
+  // If only 4-5 wells found, infer missing ones from the grid pattern
+  if(kept.length<6){
+    const medR2=kept.map(k=>k.r).sort((a,b)=>a-b)[Math.floor(kept.length/2)];
+    // Estimate grid spacing from found wells
+    const xs=kept.map(k=>k.cx).sort((a,b)=>a-b);
+    const ys=kept.map(k=>k.cy).sort((a,b)=>a-b);
+    // Try to fill in missing wells using expected grid positions from found wells
+    if(isPortrait){
+      // 2col×3row: cluster x into 2 groups, y into 3 groups
+      const colCenters=kMeansCluster(xs,2);
+      const rowCenters=kMeansCluster(ys,3);
+      const filled=[];
+      const labels=['A1','A2','B1','B2','C1','C2'];
+      for(let ri=0;ri<3;ri++)for(let ci=0;ci<2;ci++){
+        const cx=colCenters[ci],cy=rowCenters[ri];
+        const existing=kept.find(k=>Math.hypot(k.cx-cx,k.cy-cy)<medR2*1.5);
+        filled.push(existing?{cx:Math.round(existing.cx),cy:Math.round(existing.cy),r:Math.round(medR2),label:labels[ri*2+ci]}
+          :{cx:Math.round(cx),cy:Math.round(cy),r:Math.round(medR2),label:labels[ri*2+ci]});
+      }
+      return filled;
+    }else{
+      const colCenters=kMeansCluster(xs,3);
+      const rowCenters=kMeansCluster(ys,2);
+      const filled=[];
+      const labels=['A1','A2','A3','B1','B2','B3'];
+      for(let ri=0;ri<2;ri++)for(let ci=0;ci<3;ci++){
+        const cx=colCenters[ci],cy=rowCenters[ri];
+        const existing=kept.find(k=>Math.hypot(k.cx-cx,k.cy-cy)<medR2*1.5);
+        filled.push(existing?{cx:Math.round(existing.cx),cy:Math.round(existing.cy),r:Math.round(medR2),label:labels[ri*3+ci]}
+          :{cx:Math.round(cx),cy:Math.round(cy),r:Math.round(medR2),label:labels[ri*3+ci]});
+      }
+      return filled;
+    }
+  }
+
+  // All 6 found — sort into grid
+  let wells;
+  if(isPortrait){
+    kept.sort((a,b)=>a.cy-b.cy);
+    const row1=kept.slice(0,2).sort((a,b)=>a.cx-b.cx);
+    const row2=kept.slice(2,4).sort((a,b)=>a.cx-b.cx);
+    const row3=kept.slice(4,6).sort((a,b)=>a.cx-b.cx);
+    const labels=['A1','A2','B1','B2','C1','C2'];
+    wells=[...row1,...row2,...row3].map((w2,i)=>({cx:Math.round(w2.cx),cy:Math.round(w2.cy),r:Math.round(w2.r),label:labels[i]}));
+  }else{
+    kept.sort((a,b)=>a.cy-b.cy);
+    const topRow=kept.slice(0,3).sort((a,b)=>a.cx-b.cx);
+    const botRow=kept.slice(3,6).sort((a,b)=>a.cx-b.cx);
+    const labels=['A1','A2','A3','B1','B2','B3'];
+    wells=[...topRow,...botRow].map((w2,i)=>({cx:Math.round(w2.cx),cy:Math.round(w2.cy),r:Math.round(w2.r),label:labels[i]}));
+  }
   // Unify radius: use median
   const radii=wells.map(w2=>w2.r).sort((a,b)=>a-b);
   const medR=radii[2];
   wells.forEach(w2=>w2.r=medR);
   return wells;
 }
+// Simple 1D k-means clustering helper
+function kMeansCluster(vals,k){
+  vals=vals.slice().sort((a,b)=>a-b);
+  // Initialize centers evenly
+  let centers=[];
+  for(let i=0;i<k;i++)centers.push(vals[Math.round(i*(vals.length-1)/(k-1))]);
+  for(let iter=0;iter<20;iter++){
+    const groups=Array.from({length:k},()=>[]);
+    for(const v of vals){
+      let best=0,bestD=Infinity;
+      for(let i=0;i<k;i++){const d=Math.abs(v-centers[i]);if(d<bestD){bestD=d;best=i}}
+      groups[best].push(v);
+    }
+    const newC=groups.map(g=>g.length?g.reduce((s,v)=>s+v,0)/g.length:0);
+    if(newC.every((c,i)=>Math.abs(c-centers[i])<1))break;
+    centers=newC;
+  }
+  return centers.sort((a,b)=>a-b);
+}
 function fallbackWellGrid(w,h){
-  // Assume standard 2×3 layout with margins
-  const labels=['A1','A2','A3','B1','B2','B3'];
-  const r=Math.round(Math.min(w/8,h/6));
+  // Detect orientation: landscape=3cols×2rows, portrait=2cols×3rows
   const wells=[];
-  for(let row=0;row<2;row++)for(let col=0;col<3;col++){
-    wells.push({cx:Math.round(w*(col+1)/4),cy:Math.round(h*(row+1)/3),r,label:labels[row*3+col]});
+  if(w>=h){
+    // Landscape: 3 columns × 2 rows (standard plate orientation)
+    const labels=['A1','A2','A3','B1','B2','B3'];
+    const r=Math.round(Math.min(w/8,h/6));
+    for(let row=0;row<2;row++)for(let col=0;col<3;col++){
+      wells.push({cx:Math.round(w*(col+1)/4),cy:Math.round(h*(row+1)/3),r,label:labels[row*3+col]});
+    }
+  }else{
+    // Portrait: 2 columns × 3 rows (plate rotated 90°)
+    const labels=['A1','A2','B1','B2','C1','C2'];
+    const r=Math.round(Math.min(w/6,h/8));
+    for(let row=0;row<3;row++)for(let col=0;col<2;col++){
+      wells.push({cx:Math.round(w*(col+1)/3),cy:Math.round(h*(row+1)/4),r,label:labels[row*2+col]});
+    }
   }
   return wells;
 }
@@ -2239,19 +2340,22 @@ function renderWellGrid(wells,results){
   }
 }
 function showWellPreview(img,w,h,wells){
-  // Show detected wells on main canvas
-  C.width=w;C.height=h;imgW=w;imgH=h;
-  X.drawImage(img,0,0);
-  X.lineWidth=Math.max(2,w/300);X.font=Math.max(14,w/40)+'px sans-serif';X.textAlign='center';X.textBaseline='middle';
+  // Show detected wells on dedicated plate preview canvas (inside batch panel)
+  const pc=$('platePreviewCanvas');
+  pc.width=w;pc.height=h;
+  const px=pc.getContext('2d');
+  px.drawImage(img,0,0);
+  px.lineWidth=Math.max(2,w/300);px.font=Math.max(14,w/40)+'px sans-serif';px.textAlign='center';px.textBaseline='middle';
   for(const wl of wells){
-    X.strokeStyle='#38bdf8';X.setLineDash([8,5]);
-    X.beginPath();X.arc(wl.cx,wl.cy,wl.r,0,Math.PI*2);X.stroke();
-    X.setLineDash([]);
-    X.fillStyle='rgba(56,189,248,.25)';X.beginPath();X.arc(wl.cx,wl.cy,wl.r,0,Math.PI*2);X.fill();
-    X.fillStyle='#fff';X.strokeStyle='#000';X.lineWidth=3;
-    X.strokeText(wl.label,wl.cx,wl.cy);X.fillText(wl.label,wl.cx,wl.cy);
+    px.strokeStyle='#38bdf8';px.setLineDash([8,5]);
+    px.beginPath();px.arc(wl.cx,wl.cy,wl.r,0,Math.PI*2);px.stroke();
+    px.setLineDash([]);
+    px.fillStyle='rgba(56,189,248,.25)';px.beginPath();px.arc(wl.cx,wl.cy,wl.r,0,Math.PI*2);px.fill();
+    px.fillStyle='#fff';px.strokeStyle='#000';px.lineWidth=3;
+    px.strokeText(wl.label,wl.cx,wl.cy);px.fillText(wl.label,wl.cx,wl.cy);
   }
-  $('canvasContainer').style.display='block';zoomFit();
+  $('platePreviewWrap').style.display='block';
+  $('platePreviewLabel').textContent='Detected '+wells.length+' wells';
 }
 
 // --- Batch Processing Engine ---
@@ -2308,7 +2412,9 @@ function processBatchStep(idx,settings){
     try{
       const f=batchFiles[idx];
       if(batchImageMode==='plate'&&batchWellTemplate){
-        f.result=processPlateImage(f,settings,batchWellTemplate);
+        // Re-detect wells per image to handle position shifts between plates
+        const perImageWells=detectWells(f.img,f.w,f.h);
+        f.result=processPlateImage(f,settings,perImageWells);
       }else{
         f.result=processSingleImage(f,settings);
       }
@@ -2361,9 +2467,9 @@ function processPlateImage(f,s,wells){
 
 // Core pipeline that works on raw pixel data (shared by single image and batch)
 function runPipelineOnData(pixelData,w,h,s,circularROI){
-  // 1. Grayscale
+  // 1. Grayscale (NO inversion here — invert is handled at thresholding step, matching main pipeline)
   const gray=new Float32Array(w*h);
-  for(let i=0;i<w*h;i++)gray[i]=s.invert?(255-(0.299*pixelData[i*4]+0.587*pixelData[i*4+1]+0.114*pixelData[i*4+2])):(0.299*pixelData[i*4]+0.587*pixelData[i*4+1]+0.114*pixelData[i*4+2]);
+  for(let i=0;i<w*h;i++)gray[i]=0.299*pixelData[i*4]+0.587*pixelData[i*4+1]+0.114*pixelData[i*4+2];
 
   // 2. Blur
   let processed=gray;
@@ -2408,7 +2514,7 @@ function runPipelineOnData(pixelData,w,h,s,circularROI){
       const x0=Math.max(0,x-hw),y0=Math.max(0,y-hw),x1=Math.min(w,x+hw+1),y1=Math.min(h,y+hw+1);
       const area2=(x1-x0)*(y1-y0);
       const mean=(integ[y1*(w+1)+x1]-integ[y0*(w+1)+x1]-integ[y1*(w+1)+x0]+integ[y0*(w+1)+x0])/area2;
-      mask[y*w+x]=processed[y*w+x]<mean-s.adaptO?1:0;
+      mask[y*w+x]=s.invert?(processed[y*w+x]<mean-s.adaptO?1:0):(processed[y*w+x]>mean+s.adaptO?1:0);
     }
   }else{
     // Otsu or manual
@@ -2425,7 +2531,7 @@ function runPipelineOnData(pixelData,w,h,s,circularROI){
         if(between>max){max=between;thr=t}
       }
     }
-    for(let i=0;i<w*h;i++)mask[i]=processed[i]<thr?1:0;
+    for(let i=0;i<w*h;i++)mask[i]=s.invert?(processed[i]<thr?1:0):(processed[i]>=thr?1:0);
   }
 
   // Apply circular ROI if provided
@@ -2655,14 +2761,17 @@ function convexHullAreaFromBorder(borderPx,w){
 function renderBatchResults(){
   const el=$('batchResults');el.innerHTML='';
   if(batchImageMode==='plate'){
-    // Show per-image well grids
-    let html='<table><tr><th>Image</th><th>A1</th><th>A2</th><th>A3</th><th>B1</th><th>B2</th><th>B3</th><th>Total</th></tr>';
+    // Show per-image well grids — use dynamic labels from template
+    const wLabels=batchWellTemplate?batchWellTemplate.map(w2=>w2.label):['A1','A2','A3','B1','B2','B3'];
+    let html='<table><tr><th>Image</th>';
+    for(const lb of wLabels)html+='<th>'+lb+'</th>';
+    html+='<th>Total</th></tr>';
     for(const f of batchFiles){
       if(!f.result)continue;
       html+='<tr><td title="'+esc(f.file.name)+'">'+esc(f.file.name.substring(0,20))+'</td>';
       if(f.result.wells){
         for(const wl of f.result.wells)html+='<td class="br-count">'+wl.totalAccepted+'</td>';
-      }else{for(let i=0;i<6;i++)html+='<td>-</td>'}
+      }else{for(let i=0;i<wLabels.length;i++)html+='<td>-</td>'}
       html+='<td class="br-count"><strong>'+f.result.totalAccepted+'</strong></td></tr>';
     }
     html+='</table>';el.innerHTML=html;
