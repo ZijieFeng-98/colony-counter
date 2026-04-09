@@ -2127,8 +2127,12 @@ function detectWells(img,w,h){
   const expectedPitch=Math.min(plateW/(nCols+0.6),plateH/(nRows+0.6));
   const expectedR=Math.max(20,expectedPitch*0.42);
 
+  // Try geometry-based detection first (uses SLAS plate-spec + variance anchoring)
+  const geoFit=fitWellGridGeometry(img,w,h,plateBounds);
+  if(geoFit)return geoFit;
+
   const rimFit=fitWellGridToRims(img,w,h,plateBounds);
-  if(rimFit&&isConsistentWellLayout(rimFit,plateBounds))return rimFit;
+  if(rimFit&&isConsistentWellLayout(rimFit,plateBounds,w,h))return rimFit;
 
   const oc=document.createElement('canvas');oc.width=w;oc.height=h;
   const ox=oc.getContext('2d');ox.drawImage(img,0,0);
@@ -2253,7 +2257,7 @@ function detectWells(img,w,h){
         filled.push(existing?{cx:Math.round(existing.cx),cy:Math.round(existing.cy),r:Math.round(medR2),label:labels[ri*2+ci]}
           :{cx:Math.round(cx),cy:Math.round(cy),r:Math.round(medR2),label:labels[ri*2+ci]});
       }
-      if(isConsistentWellLayout(filled,plateBounds))return filled;
+      if(isConsistentWellLayout(filled,plateBounds,w,h))return filled;
       return fallbackWellGrid(w,h,img,plateBounds);
     }else{
       const colCenters=kMeansCluster(xs,3);
@@ -2266,7 +2270,7 @@ function detectWells(img,w,h){
         filled.push(existing?{cx:Math.round(existing.cx),cy:Math.round(existing.cy),r:Math.round(medR2),label:labels[ri*3+ci]}
           :{cx:Math.round(cx),cy:Math.round(cy),r:Math.round(medR2),label:labels[ri*3+ci]});
       }
-      if(isConsistentWellLayout(filled,plateBounds))return filled;
+      if(isConsistentWellLayout(filled,plateBounds,w,h))return filled;
       return fallbackWellGrid(w,h,img,plateBounds);
     }
   }
@@ -2291,9 +2295,154 @@ function detectWells(img,w,h){
   const radii=wells.map(w2=>w2.r).sort((a,b)=>a-b);
   const medR=radii[2];
   wells.forEach(w2=>w2.r=medR);
-  if(!isConsistentWellLayout(wells,plateBounds)){
+  if(!isConsistentWellLayout(wells,plateBounds,w,h)){
     const fallback=fallbackWellGrid(w,h,img,plateBounds);
     if(fallback)return fallback;
+  }
+  return wells;
+}
+function fitWellGridGeometry(img,w,h,plateBounds){
+  // Geometry-based well detection using ANSI/SLAS standard 6-well plate dimensions.
+  // Uses reliable x-bounds + variance-anchored rows to avoid dependence on unreliable y-bounds.
+  const bounds=plateBounds||detectPlateBounds(img,w,h);
+  const isPortrait=w<h;
+  // SLAS standard 6-well plate physical dimensions (mm)
+  const PLATE_LONG=127.76,PLATE_SHORT=85.48,PITCH=39.12,WELL_D=35.0;
+  // A1 offset from corner: X=24.76mm, Y=23.16mm (landscape orientation)
+  // Along long axis (3 positions): 23.16, 62.28, 101.40 mm
+  // Along short axis (2 positions): 24.76, 63.88 mm
+  const LONG_FRACS=[23.16/PLATE_LONG,62.28/PLATE_LONG,101.40/PLATE_LONG];
+  const SHORT_FRACS=[24.76/PLATE_SHORT,63.88/PLATE_SHORT];
+  const nRows=isPortrait?3:2,nCols=isPortrait?2:3;
+
+  // X-bounds are reliable (column variance is consistent)
+  const px0=bounds.x0,px1=bounds.x1,pw=Math.max(1,px1-px0);
+  const plateWidthMM=isPortrait?PLATE_SHORT:PLATE_LONG;
+  const pxPerMM=pw/plateWidthMM;
+  const pitchPx=PITCH*pxPerMM;
+  const wellR=Math.round((WELL_D/2)*pxPerMM);
+
+  // Column centers directly from x-bounds + plate-spec fractions
+  const colFracs=isPortrait?SHORT_FRACS:LONG_FRACS;
+  const colCenters=colFracs.map(f=>Math.round(px0+pw*f));
+
+  // For rows, use variance profile to find best placement
+  const maxDim=700;
+  const scale=Math.min(1,maxDim/Math.max(w,h));
+  const sw=Math.round(w*scale),sh=Math.round(h*scale);
+  const c=document.createElement('canvas');c.width=sw;c.height=sh;
+  const ctx=c.getContext('2d',{willReadFrequently:true});
+  ctx.drawImage(img,0,0,sw,sh);
+  const d=ctx.getImageData(0,0,sw,sh).data;
+
+  // Row-wise variance within plate x-bounds
+  const sxL=Math.max(0,Math.round(px0*scale));
+  const sxR=Math.min(sw,Math.round(px1*scale));
+  const bandW=Math.max(1,sxR-sxL);
+  const rowVar=new Float32Array(sh);
+  for(let y=0;y<sh;y++){
+    let sum=0,sum2=0;
+    for(let x=sxL;x<sxR;x++){
+      const idx=(y*sw+x)*4;
+      const v=0.299*d[idx]+0.587*d[idx+1]+0.114*d[idx+2];
+      sum+=v;sum2+=v*v;
+    }
+    const mean=sum/bandW;
+    rowVar[y]=sum2/bandW-mean*mean;
+  }
+
+  // Heavy smoothing to suppress handwriting/noise artifacts (≈400px window at full res)
+  const smoothR=Math.max(10,Math.round(200*scale));
+  const smoothVar=boxSmooth1D(rowVar,smoothR);
+  const pitchScaled=pitchPx*scale;
+
+  // Search for best row placement by scoring variance at all row positions simultaneously
+  let bestScore=-1,bestAnchor=Math.round(sh/2);
+  if(isPortrait){
+    // 3 rows: A at anchor-pitch, B at anchor, C at anchor+pitch. Search for B-row.
+    const lo=Math.round(pitchScaled*1.2),hi=Math.round(sh-pitchScaled*1.2);
+    for(let by=lo;by<hi;by++){
+      const ay=by-Math.round(pitchScaled),cy=by+Math.round(pitchScaled);
+      if(ay<0||cy>=sh)continue;
+      const score=smoothVar[ay]+smoothVar[by]+smoothVar[cy];
+      if(score>bestScore){bestScore=score;bestAnchor=by;}
+    }
+  }else{
+    // 2 rows: search for midpoint between them
+    const lo=Math.round(pitchScaled*0.8),hi=Math.round(sh-pitchScaled*0.8);
+    for(let mid=lo;mid<hi;mid++){
+      const r1=mid-Math.round(pitchScaled/2),r2=mid+Math.round(pitchScaled/2);
+      if(r1<0||r2>=sh)continue;
+      const score=smoothVar[r1]+smoothVar[r2];
+      if(score>bestScore){bestScore=score;bestAnchor=mid;}
+    }
+  }
+
+  // Convert row centers to original image coordinates
+  let rowCenters;
+  if(isPortrait){
+    const bRow=bestAnchor/scale;
+    rowCenters=[bRow-pitchPx,bRow,bRow+pitchPx];
+  }else{
+    const mid=bestAnchor/scale;
+    rowCenters=[mid-pitchPx/2,mid+pitchPx/2];
+  }
+  rowCenters=rowCenters.map(y=>Math.round(y));
+
+  // Sanity: all wells must be within image bounds
+  const margin=Math.round(wellR*0.5);
+  for(const cy of rowCenters){
+    if(cy<margin||cy>h-margin)return null;
+  }
+  for(const cx of colCenters){
+    if(cx<margin||cx>w-margin)return null;
+  }
+
+  // Refine well radius from image gradient (physical spec radius is too large —
+  // visible agar area is smaller than the full physical well due to well walls/agar level/lid).
+  // Build grayscale array for fast pixel access.
+  const rc=document.createElement('canvas');rc.width=w;rc.height=h;
+  const rctx=rc.getContext('2d',{willReadFrequently:true});
+  rctx.drawImage(img,0,0);
+  const rid=rctx.getImageData(0,0,w,h).data;
+  const rgray=new Float32Array(w*h);
+  for(let i=0;i<w*h;i++)rgray[i]=0.299*rid[i*4]+0.587*rid[i*4+1]+0.114*rid[i*4+2];
+  const rMinR=Math.round(wellR*0.45),rMaxR=Math.round(wellR*0.85),rStep=Math.max(2,Math.round((rMaxR-rMinR)/30));
+  const allMeas=[];
+  for(let ri=0;ri<nRows;ri++)for(let ci=0;ci<nCols;ci++){
+    const wcx=colCenters[ci],wcy=rowCenters[ri];
+    let bestRi=Math.round(wellR*0.6),bestGrad=0;
+    for(let tr=rMinR;tr<=rMaxR;tr+=rStep){
+      let gSum=0,gN=0;
+      for(let a=0;a<24;a++){
+        const t=a*Math.PI/12;
+        const x1=Math.round(wcx+(tr-4)*Math.cos(t)),y1=Math.round(wcy+(tr-4)*Math.sin(t));
+        const x2=Math.round(wcx+(tr+4)*Math.cos(t)),y2=Math.round(wcy+(tr+4)*Math.sin(t));
+        if(x1<0||x2>=w||y1<0||y2>=h)continue;
+        gSum+=Math.abs(rgray[y2*w+x2]-rgray[y1*w+x1]);
+        gN++;
+      }
+      const grad=gN>0?gSum/gN:0;
+      if(grad>bestGrad){bestGrad=grad;bestRi=tr;}
+    }
+    allMeas.push({r:bestRi,g:bestGrad});
+  }
+  // Use radius from wells with strongest gradient (most reliable rim visibility).
+  // Filter to wells above 1/3 of max gradient, then take median of those radii.
+  const maxGrad=Math.max(...allMeas.map(m=>m.g));
+  const strong=allMeas.filter(m=>m.g>maxGrad/3).map(m=>m.r).sort((a,b)=>a-b);
+  let finalR;
+  if(strong.length>=1){
+    finalR=strong[Math.floor(strong.length/2)];
+  }else{
+    finalR=Math.round(pitchPx*0.30);
+  }
+
+  // Build well array
+  const labels=isPortrait?['A1','A2','B1','B2','C1','C2']:['A1','A2','A3','B1','B2','B3'];
+  const wells=[];
+  for(let ri=0;ri<nRows;ri++)for(let ci=0;ci<nCols;ci++){
+    wells.push({cx:colCenters[ci],cy:rowCenters[ri],r:finalR,label:labels[ri*nCols+ci]});
   }
   return wells;
 }
@@ -2359,7 +2508,7 @@ function fitWellGridToRims(img,w,h,plateBounds){
       label:labels[ri*nCols+ci]
     });
   }
-  return isConsistentWellLayout(wells,bounds)?wells:null;
+  return isConsistentWellLayout(wells,bounds,w,h)?wells:null;
 }
 function searchWellRing(grad,gray,w,h,expCx,expCy,expR,maxDx,maxDy,maxDr){
   let best=null;
@@ -2539,7 +2688,7 @@ function detectWellCentersFromContent(img,w,h,plateBounds){
       label:labels[ri*nCols+ci]
     });
   }
-  return isConsistentWellLayout(wells,bounds)?wells:null;
+  return isConsistentWellLayout(wells,bounds,w,h)?wells:null;
 }
 // Find exactly n peaks in a 1D signal, with minimum distance between peaks
 function findNPeaks(arr,n,minDist,searchStart,searchEnd){
@@ -2615,7 +2764,7 @@ function detectPlateBounds(img,w,h){
 
   return {x0:Math.round(sx0/scale),y0:Math.round(sy0/scale),x1:Math.round(sx1/scale),y1:Math.round(sy1/scale)};
 }
-function isConsistentWellLayout(wells,plateBounds){
+function isConsistentWellLayout(wells,plateBounds,imgW,imgH){
   if(!wells||wells.length!==6)return false;
   const bounds=plateBounds||{
     x0:Math.min(...wells.map(w2=>w2.cx-w2.r)),
@@ -2623,7 +2772,8 @@ function isConsistentWellLayout(wells,plateBounds){
     x1:Math.max(...wells.map(w2=>w2.cx+w2.r)),
     y1:Math.max(...wells.map(w2=>w2.cy+w2.r))
   };
-  const isPortrait=(bounds.x1-bounds.x0)<(bounds.y1-bounds.y0);
+  // Use image dimensions for orientation if available — plate bounds can be unreliable
+  const isPortrait=(imgW&&imgH)?imgW<imgH:(bounds.x1-bounds.x0)<(bounds.y1-bounds.y0);
   const nCols=isPortrait?2:3;
   const rows=[];
   const sortedByY=wells.slice().sort((a,b)=>a.cy-b.cy);
