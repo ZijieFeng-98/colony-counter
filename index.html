@@ -2121,7 +2121,8 @@ function detectWells(img,w,h){
   const plateBounds=detectPlateBounds(img,w,h);
   const plateW=Math.max(1,plateBounds.x1-plateBounds.x0);
   const plateH=Math.max(1,plateBounds.y1-plateBounds.y0);
-  const isPortrait=plateW<plateH;
+  // Use image dimensions for orientation — plate bounds can be unreliable
+  const isPortrait=w<h;
   const nRows=isPortrait?3:2, nCols=isPortrait?2:3;
   const expectedPitch=Math.min(plateW/(nCols+0.6),plateH/(nRows+0.6));
   const expectedR=Math.max(20,expectedPitch*0.42);
@@ -2318,7 +2319,9 @@ function fitWellGridToRims(img,w,h,plateBounds){
   const sx0=Math.max(0,Math.round(bounds.x0*scale)),sy0=Math.max(0,Math.round(bounds.y0*scale));
   const sx1=Math.min(sw,Math.round(bounds.x1*scale)),sy1=Math.min(sh,Math.round(bounds.y1*scale));
   const pw=Math.max(1,sx1-sx0),ph=Math.max(1,sy1-sy0);
-  const isPortrait=pw<ph;
+  // Use full image dimensions for orientation — plate bounds can be unreliable
+  // (e.g. lid/sparse wells cropped by variance threshold, making bounds wider than tall)
+  const isPortrait=w<h;
   const nRows=isPortrait?3:2,nCols=isPortrait?2:3;
   const pitchX=pw/(nCols+1),pitchY=ph/(nRows+1);
   const expectedR=Math.max(10,Math.min(pitchX,pitchY)*0.42);
@@ -2426,7 +2429,7 @@ function fallbackWellGrid(w,h,img,plateBounds){
   // Ultimate fallback: simple equal-spacing grid (no image data)
   const bounds=plateBounds||{x0:0,y0:0,x1:w,y1:h};
   const bw=Math.max(1,bounds.x1-bounds.x0),bh=Math.max(1,bounds.y1-bounds.y0);
-  const isPortrait=bw<bh;
+  const isPortrait=w<h;
   const wells=[];
   if(!isPortrait){
     const labels=['A1','A2','A3','B1','B2','B3'];
@@ -2461,7 +2464,7 @@ function detectWellCentersFromContent(img,w,h,plateBounds){
     gray[y*pw+x]=0.299*d[si]+0.587*d[si+1]+0.114*d[si+2];
   }
 
-  const isPortrait=pw<ph;
+  const isPortrait=w<h;
   const nRows=isPortrait?3:2, nCols=isPortrait?2:3;
 
   // Compute row-wise local contrast: for each row, measure the standard deviation
@@ -2603,8 +2606,12 @@ function detectPlateBounds(img,w,h){
   sy0=Math.min(sy0+yMargin,sh-1);sy1=Math.max(sy1-yMargin,0);
   sx0=Math.min(sx0+xMargin,sw-1);sx1=Math.max(sx1-xMargin,0);
 
-  if((sy1-sy0)<sh*0.25){sy0=Math.round(sh*0.35);sy1=Math.round(sh*0.8)}
-  if((sx1-sx0)<sw*0.25){sx0=Math.round(sw*0.12);sx1=Math.round(sw*0.88)}
+  // Sanity: plate should span a reasonable portion of the image
+  // For portrait images, be more generous with height bounds
+  const minFracY=(sw<sh)?0.5:0.35;
+  const minFracX=(sw<sh)?0.35:0.5;
+  if((sy1-sy0)<sh*minFracY){sy0=Math.round(sh*0.08);sy1=Math.round(sh*0.88)}
+  if((sx1-sx0)<sw*minFracX){sx0=Math.round(sw*0.08);sx1=Math.round(sw*0.88)}
 
   return {x0:Math.round(sx0/scale),y0:Math.round(sy0/scale),x1:Math.round(sx1/scale),y1:Math.round(sy1/scale)};
 }
