@@ -2126,6 +2126,9 @@ function detectWells(img,w,h){
   const expectedPitch=Math.min(plateW/(nCols+0.6),plateH/(nRows+0.6));
   const expectedR=Math.max(20,expectedPitch*0.42);
 
+  const rimFit=fitWellGridToRims(img,w,h,plateBounds);
+  if(rimFit&&isConsistentWellLayout(rimFit,plateBounds))return rimFit;
+
   const oc=document.createElement('canvas');oc.width=w;oc.height=h;
   const ox=oc.getContext('2d');ox.drawImage(img,0,0);
   const id=ox.getImageData(0,0,w,h).data;
@@ -2292,6 +2295,108 @@ function detectWells(img,w,h){
     if(fallback)return fallback;
   }
   return wells;
+}
+function fitWellGridToRims(img,w,h,plateBounds){
+  const bounds=plateBounds||detectPlateBounds(img,w,h);
+  const maxDim=900;
+  const scale=Math.min(1,maxDim/Math.max(w,h));
+  const sw=Math.round(w*scale),sh=Math.round(h*scale);
+  const c=document.createElement('canvas');c.width=sw;c.height=sh;
+  const ctx=c.getContext('2d',{willReadFrequently:true});
+  ctx.drawImage(img,0,0,sw,sh);
+  const d=ctx.getImageData(0,0,sw,sh).data;
+  const gray=new Float32Array(sw*sh);
+  for(let i=0;i<sw*sh;i++)gray[i]=0.299*d[i*4]+0.587*d[i*4+1]+0.114*d[i*4+2];
+  const blur=gaussBlur1D(gray,sw,sh,2.5);
+  const grad=new Float32Array(sw*sh);
+  for(let y=1;y<sh-1;y++)for(let x=1;x<sw-1;x++){
+    const gx=-blur[(y-1)*sw+x-1]+blur[(y-1)*sw+x+1]-2*blur[y*sw+x-1]+2*blur[y*sw+x+1]-blur[(y+1)*sw+x-1]+blur[(y+1)*sw+x+1];
+    const gy=-blur[(y-1)*sw+x-1]-2*blur[(y-1)*sw+x]+blur[(y+1)*sw+x-1]+2*blur[(y+1)*sw+x]+blur[(y+1)*sw+x+1]-blur[(y-1)*sw+x+1];
+    grad[y*sw+x]=Math.sqrt(gx*gx+gy*gy);
+  }
+
+  const sx0=Math.max(0,Math.round(bounds.x0*scale)),sy0=Math.max(0,Math.round(bounds.y0*scale));
+  const sx1=Math.min(sw,Math.round(bounds.x1*scale)),sy1=Math.min(sh,Math.round(bounds.y1*scale));
+  const pw=Math.max(1,sx1-sx0),ph=Math.max(1,sy1-sy0);
+  const isPortrait=pw<ph;
+  const nRows=isPortrait?3:2,nCols=isPortrait?2:3;
+  const pitchX=pw/(nCols+1),pitchY=ph/(nRows+1);
+  const expectedR=Math.max(10,Math.min(pitchX,pitchY)*0.42);
+
+  const pass1=[];
+  const coarseDx=Math.max(4,Math.round(pitchX*0.18));
+  const coarseDy=Math.max(4,Math.round(pitchY*0.18));
+  const coarseDr=Math.max(3,Math.round(expectedR*0.18));
+  for(let ri=0;ri<nRows;ri++)for(let ci=0;ci<nCols;ci++){
+    const expCx=sx0+pw*(ci+1)/(nCols+1);
+    const expCy=sy0+ph*(ri+1)/(nRows+1);
+    const fit=searchWellRing(grad,gray,sw,sh,expCx,expCy,expectedR,coarseDx,coarseDy,coarseDr);
+    if(!fit)return null;
+    pass1.push({ri,ci,...fit});
+  }
+
+  const rowYs=Array.from({length:nRows},(_,ri)=>pass1.filter(p=>p.ri===ri).reduce((s,p)=>s+p.cy,0)/nCols);
+  const colXs=Array.from({length:nCols},(_,ci)=>pass1.filter(p=>p.ci===ci).reduce((s,p)=>s+p.cx,0)/nRows);
+  const radii=pass1.map(p=>p.r).sort((a,b)=>a-b);
+  const medR=radii[Math.floor(radii.length/2)]||expectedR;
+
+  const fineDx=Math.max(2,Math.round(pitchX*0.08));
+  const fineDy=Math.max(2,Math.round(pitchY*0.08));
+  const fineDr=Math.max(2,Math.round(medR*0.10));
+  const labels=isPortrait?['A1','A2','B1','B2','C1','C2']:['A1','A2','A3','B1','B2','B3'];
+  const wells=[];
+  for(let ri=0;ri<nRows;ri++)for(let ci=0;ci<nCols;ci++){
+    const pass1Fit=pass1.find(p=>p.ri===ri&&p.ci===ci);
+    const fit=searchWellRing(grad,gray,sw,sh,colXs[ci],rowYs[ri],medR,fineDx,fineDy,fineDr);
+    const useFit=(fit&&fit.score>=pass1Fit.score*0.75)?fit:pass1Fit;
+    wells.push({
+      cx:Math.round(useFit.cx/scale),
+      cy:Math.round(useFit.cy/scale),
+      r:Math.round(useFit.r/scale),
+      label:labels[ri*nCols+ci]
+    });
+  }
+  return isConsistentWellLayout(wells,bounds)?wells:null;
+}
+function searchWellRing(grad,gray,w,h,expCx,expCy,expR,maxDx,maxDy,maxDr){
+  let best=null;
+  for(let dy=-maxDy;dy<=maxDy;dy+=2){
+    for(let dx=-maxDx;dx<=maxDx;dx+=2){
+      for(let dr=-maxDr;dr<=maxDr;dr+=2){
+        const cx=expCx+dx,cy=expCy+dy,r=Math.max(8,expR+dr);
+        const score=scoreWellRing(grad,gray,w,h,cx,cy,r);
+        if(!best||score>best.score)best={cx,cy,r,score};
+      }
+    }
+  }
+  return best;
+}
+function scoreWellRing(grad,gray,w,h,cx,cy,r){
+  const samples=72;
+  let edgeSum=0,innerSum=0,outerSum=0,valid=0;
+  for(let i=0;i<samples;i++){
+    const t=2*Math.PI*i/samples;
+    const ct=Math.cos(t),st=Math.sin(t);
+    const xEdge=cx+r*ct,yEdge=cy+r*st;
+    const xInner=cx+r*0.78*ct,yInner=cy+r*0.78*st;
+    const xOuter=cx+r*1.08*ct,yOuter=cy+r*1.08*st;
+    if(xOuter<1||xOuter>=w-2||yOuter<1||yOuter>=h-2)continue;
+    edgeSum+=sampleBilinear(grad,w,h,xEdge,yEdge);
+    innerSum+=sampleBilinear(gray,w,h,xInner,yInner);
+    outerSum+=sampleBilinear(gray,w,h,xOuter,yOuter);
+    valid++;
+  }
+  if(valid<samples*0.75)return -Infinity;
+  const edgeAvg=edgeSum/valid;
+  const contrast=Math.max(0,(outerSum-innerSum)/valid/6);
+  return edgeAvg+contrast;
+}
+function sampleBilinear(arr,w,h,x,y){
+  if(x<0||y<0||x>=w-1||y>=h-1)return 0;
+  const x0=Math.floor(x),y0=Math.floor(y),dx=x-x0,dy=y-y0;
+  const i00=y0*w+x0;
+  const a=arr[i00],b=arr[i00+1],c=arr[i00+w],d=arr[i00+w+1];
+  return a*(1-dx)*(1-dy)+b*dx*(1-dy)+c*(1-dx)*dy+d*dx*dy;
 }
 // Simple 1D k-means clustering helper
 function kMeansCluster(vals,k){
