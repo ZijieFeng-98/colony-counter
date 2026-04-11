@@ -140,9 +140,9 @@ input[type=text],input[type=number]{width:100%;padding:6px 8px;border:1px solid 
 /* Help tooltips */
 .help-tip{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:var(--border);color:var(--muted);font-size:.6rem;font-weight:700;cursor:help;margin-left:4px;position:relative;vertical-align:middle;flex-shrink:0;transition:background .2s,color .2s}
 .help-tip:hover{background:var(--primary);color:#fff}
-.help-tip .tip-text{display:none;position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);width:220px;background:#1e293b;color:#f1f5f9;font-size:.68rem;font-weight:400;line-height:1.45;padding:8px 10px;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.25);z-index:999;pointer-events:none;text-align:left}
-.help-tip .tip-text::after{content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);border:5px solid transparent;border-top-color:#1e293b}
-.help-tip:hover .tip-text{display:block}
+.help-tip .tip-text{display:none !important}
+.floating-tip{position:fixed;display:none;max-width:280px;background:#1e293b;color:#f1f5f9;font-size:.72rem;line-height:1.45;padding:9px 11px;border-radius:8px;box-shadow:0 8px 20px rgba(0,0,0,.28);z-index:5000;pointer-events:none}
+.floating-tip.show{display:block}
 
 /* Simple/Advanced toggle */
 .mode-switch{display:flex;gap:0;border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:8px;font-size:.72rem}
@@ -195,7 +195,13 @@ input[type=text],input[type=number]{width:100%;padding:6px 8px;border:1px solid 
 .batch-progress.active{display:block}
 .bp-bar-bg{background:var(--bg);border-radius:4px;height:6px;overflow:hidden;margin-bottom:4px}
 .bp-bar{background:var(--primary);height:100%;border-radius:4px;transition:width .3s}
+.bp-bar.indeterminate{width:34%!important;animation:bpind 1.1s infinite ease-in-out}
 .bp-label{font-size:.7rem;color:var(--muted);text-align:center}
+@keyframes bpind{
+  0%{transform:translateX(-110%)}
+  50%{transform:translateX(110%)}
+  100%{transform:translateX(300%)}
+}
 
 /* Batch results table */
 .batch-results{margin-top:8px}
@@ -207,11 +213,16 @@ input[type=text],input[type=number]{width:100%;padding:6px 8px;border:1px solid 
 
 /* Well grid preview */
 .well-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:8px 0}
-.well-card{border:1px solid var(--border);border-radius:6px;padding:6px;text-align:center;font-size:.72rem;background:var(--card)}
+.well-card{border:1px solid var(--border);border-radius:6px;padding:6px;text-align:center;font-size:.72rem;background:var(--card);cursor:pointer;transition:border-color .12s,box-shadow .12s,transform .12s}
+.well-card:hover{border-color:#93c5fd;box-shadow:0 0 0 2px rgba(59,130,246,.12)}
+.well-card.active{border-color:var(--primary);box-shadow:0 0 0 2px rgba(37,99,235,.18)}
 .well-card .wc-label{font-weight:600;color:var(--text);margin-bottom:2px}
 .well-card .wc-count{font-size:1.1rem;font-weight:700;color:var(--primary)}
 .well-card .wc-sub{color:var(--muted);font-size:.65rem}
 .well-card.wc-empty{background:var(--bg);color:var(--muted)}
+.well-actions{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}
+.well-actions .btn{margin-bottom:0}
+.well-adjust-on{outline:2px solid rgba(37,99,235,.22)}
 
 /* Plate mode selector */
 .plate-mode{display:flex;border-radius:6px;overflow:hidden;border:1px solid var(--border);margin-bottom:8px}
@@ -275,6 +286,9 @@ input[type=text],input[type=number]{width:100%;padding:6px 8px;border:1px solid 
       <p><strong>Click or drag &amp; drop</strong> plate image (JPG, PNG, TIFF)</p>
       <input type="file" id="fileInput" accept="image/*" style="display:none">
     </div>
+    <div style="margin-top:8px">
+      <button class="btn btn-outline" id="singleToPlateBtn" disabled onclick="openCurrentAsPlateMode()">Use Current Image As 6-Well Plate</button>
+    </div>
     </div>
 
     <!-- BATCH upload panel -->
@@ -290,7 +304,11 @@ input[type=text],input[type=number]{width:100%;padding:6px 8px;border:1px solid 
       </div>
       <div class="batch-file-list" id="batchFileList"></div>
       <div id="wellDetectGroup" style="display:none">
-        <button class="btn btn-outline" id="detectWellsBtn" disabled onclick="runWellDetection()">&#9711; Detect Wells in First Image</button>
+        <div class="well-actions">
+          <button class="btn btn-outline" id="detectWellsBtn" disabled onclick="runWellDetection()">&#9711; Detect Wells in First Image</button>
+          <button class="btn btn-outline" id="adjustWellsBtn" disabled onclick="toggleWellAdjustment()">Adjust Wells</button>
+          <button class="btn btn-outline" id="resetWellsBtn" disabled onclick="resetAdjustedWells()">Reset To Auto-Detected Wells</button>
+        </div>
         <div class="well-grid" id="wellGrid" style="display:none"></div>
       </div>
       <button class="btn btn-primary" id="batchRunBtn" disabled onclick="startBatchProcessing()">&#9654; Process All Images</button>
@@ -317,7 +335,8 @@ input[type=text],input[type=number]{width:100%;padding:6px 8px;border:1px solid 
       <div class="sep"></div>
       <span class="lbl">Edit:</span>
       <button id="tbROI" onclick="startROI()">&#9711; ROI</button>
-      <button id="tbAdd" class="active" onclick="setMode('add')">+ Add</button>
+      <button id="tbInspect" class="active" onclick="setMode('inspect')">Inspect</button>
+      <button id="tbAdd" onclick="setMode('add')">+ Add</button>
       <button id="tbRem" onclick="setMode('remove')">- Remove</button>
       <div class="sep"></div>
       <button onclick="undo()">&#8630;</button>
@@ -508,6 +527,12 @@ input[type=text],input[type=number]{width:100%;padding:6px 8px;border:1px solid 
         </label>
         <div class="rr"><input type="range" id="wsPD" min="20" max="100" value="60" step="5"><span class="rv" id="wsPDV">0.60</span></div>
       </div>
+      <div class="cg">
+        <label>Cluster Split Sensitivity
+          <span class="help-tip">?<span class="tip-text">Controls how aggressively dense merged blobs are split. Higher values add more internal split seeds and preserve smaller split fragments. Use this for crowded wells only. Start around 50 and increase gradually.</span></span>
+        </label>
+        <div class="rr"><input type="range" id="splitSens" min="0" max="100" value="50" step="5"><span class="rv" id="splitSensV">50</span></div>
+      </div>
     </div>
 
     <button class="btn btn-primary" id="detectBtn" disabled onclick="runDetection()">&#9654; Auto-Detect</button>
@@ -517,7 +542,8 @@ input[type=text],input[type=number]{width:100%;padding:6px 8px;border:1px solid 
   <div class="panel">
     <h2>&#9314; Manual Correction</h2>
     <div class="mode-toggle">
-      <button id="mAdd" class="active" onclick="setMode('add')">+ Add</button>
+      <button id="mInspect" class="active" onclick="setMode('inspect')">Inspect</button>
+      <button id="mAdd" onclick="setMode('add')">+ Add</button>
       <button id="mRem" onclick="setMode('remove')">- Remove</button>
     </div>
     <p style="font-size:.7rem;color:var(--muted);margin-bottom:6px"><b>Add:</b> click to mark. <b>Remove:</b> click near a marker.</p>
@@ -566,6 +592,11 @@ input[type=text],input[type=number]{width:100%;padding:6px 8px;border:1px solid 
         <tr><td>Confidence</td><td id="inspConf">-</td></tr>
       </table>
       <div class="reason-list" id="inspReasons"></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+        <button class="btn btn-success btn-sm" id="inspAcceptBtn" onclick="setInspectedDecision('accept')">Accept</button>
+        <button class="btn btn-outline btn-sm" id="inspRejectBtn" onclick="setInspectedDecision('reject')">Reject</button>
+        <button class="btn btn-outline btn-sm" id="inspResetBtn" onclick="setInspectedDecision('reset')">Reset</button>
+      </div>
     </div>
   </div>
 
@@ -616,6 +647,7 @@ input[type=text],input[type=number]{width:100%;padding:6px 8px;border:1px solid 
 </div>
 
 <div class="toast" id="toast"></div>
+<div class="floating-tip" id="floatingTip"></div>
 
 <script>
 // =================================================================
@@ -740,6 +772,14 @@ input[type=text],input[type=number]{width:100%;padding:6px 8px;border:1px solid 
 })(typeof globalThis !== "undefined" ? globalThis : this);
 </script>
 <script>
+window.__colonyCvReady=false;
+window.__colonyCvFailed=false;
+window.addEventListener('load',()=>{
+  if(window.cv&&window.cv.Mat)window.__colonyCvReady=true;
+});
+</script>
+<script src="opencv.js" onload="window.__colonyCvReady=!!(window.cv&&window.cv.Mat)" onerror="window.__colonyCvFailed=true"></script>
+<script>
 // =================================================================
 //  STATE
 // =================================================================
@@ -750,22 +790,32 @@ let allObjects=[]; // [{id,x,y,area,perimeter,circularity,solidity,eccentricity,
 let manualCols=[]; // [{id,x,y,source:'manual'}]
 let removedAuto=[]; // IDs removed by user
 let prevAcceptedCount=0; // for delta card
-let curMode='add', overlayMode='original';
+let curMode='inspect', overlayMode='original';
 let legendVis={accepted:true,rejected:false,ambiguous:true,manual:true,split:true};
 let roi=null, roiDrawing=false, roiStart=null;
 let undoStack=[], redoStack=[];
 let zoomScale=1, samples=[], nextId=0;
 let inspectedId=null;
+let forcedAccepted=[]; // IDs manually accepted by user
 let prevObjects=[]; // for delta highlight: previous accepted set
 let deltaNewIds=new Set(), deltaLostIds=new Set(); // IDs that changed status
 let deltaFadeStart=0; // timestamp when delta glow began
+let singleImageEntry=null; // {file,img,w,h}
 
 // Batch / Plate state
 let activeTab='single'; // 'single' | 'batch'
 let batchImageMode='individual'; // 'individual' | 'plate'
 let batchFiles=[]; // [{file, img:HTMLImageElement, w, h, result:null|{wells:[...]}}]
 let batchWellTemplate=null; // [{cx,cy,r,label}] from first plate image
+let batchAutoWellTemplate=null; // original auto-detected wells for reset
 let batchProcessing=false;
+let plateReviewState=null; // {fileIndex,wellIndex,rect:{x0,y0,cw,ch},wellLabel}
+let wellAdjustState=null; // {fileIndex,selectedWell,dragMode,startX,startY,startCx,startCy,startR}
+let batchMainPreview=null; // {fileIndex,wells,results}
+
+function updateDetectButtonState(){
+  $('detectBtn').disabled=!(!!origPx&&!batchProcessing);
+}
 
 const C=document.getElementById('mainCanvas'), X=C.getContext('2d',{willReadFrequently:true});
 // Fix #9: Cache CSS custom properties at startup to avoid getComputedStyle per render frame
@@ -782,24 +832,66 @@ uploadArea.addEventListener('dragleave',()=>uploadArea.classList.remove('dragove
 uploadArea.addEventListener('drop',e=>{e.preventDefault();uploadArea.classList.remove('dragover');if(e.dataTransfer.files.length)loadImage(e.dataTransfer.files[0])});
 fileIn.addEventListener('change',e=>{if(e.target.files.length)loadImage(e.target.files[0])});
 
+function cloneWells(wells){return (wells||[]).map(w=>({...w}))}
+function setBatchProgress(label,ratio=null,indeterminate=false){
+  $('batchProgress').classList.add('active');
+  $('bpLabel').textContent=label||'Working...';
+  $('bpBar').classList.toggle('indeterminate',!!indeterminate);
+  if(indeterminate||ratio==null){
+    $('bpBar').style.width='34%';
+  }else{
+    $('bpBar').style.width=Math.max(0,Math.min(100,Math.round(ratio*100)))+'%';
+  }
+}
+function clearBatchProgress(label='Ready'){
+  $('bpBar').classList.remove('indeterminate');
+  $('bpBar').style.width='0%';
+  $('bpLabel').textContent=label;
+  if(!batchProcessing)$('batchProgress').classList.remove('active');
+}
+function nextPaint(){
+  return new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+}
+function openCurrentAsPlateMode(){
+  if(!singleImageEntry||!singleImageEntry.img){toast('Load a single image first');return;}
+  savePlateWellReviewState();
+  const entry={file:singleImageEntry.file,img:singleImageEntry.img,w:singleImageEntry.w,h:singleImageEntry.h,result:null};
+  batchFiles=[entry];
+  batchWellTemplate=null;
+  batchAutoWellTemplate=null;
+  plateReviewState=null;
+  wellAdjustState=null;
+  batchMainPreview=null;
+  switchTab('batch');
+  setBatchMode('plate');
+  updateBatchUI();
+  toast('Current image moved to 6-well plate mode');
+}
+
 function loadImage(f){
+  savePlateWellReviewState();
+  plateReviewState=null;
+  wellAdjustState=null;
+  batchMainPreview=null;
   origFn=f.name;
   const r=new FileReader();
   r.onload=e=>{
     const img=new Image();
     img.onload=()=>{
+      singleImageEntry={file:f,img,w:img.width,h:img.height};
       origImg=img;imgW=img.width;imgH=img.height;
       C.width=imgW;C.height=imgH;X.drawImage(img,0,0);
       origPx=X.getImageData(0,0,imgW,imgH).data.slice();
-      allObjects=[];manualCols=[];removedAuto=[];undoStack=[];redoStack=[];
+      allObjects=[];manualCols=[];removedAuto=[];forcedAccepted=[];undoStack=[];redoStack=[];
       roi=null;grayD=null;blurD=null;binMask=null;prevAcceptedCount=0;inspectedId=null;
       zoomFit();
       document.getElementById('canvasContainer').style.display='block';
       document.getElementById('toolbar').style.display='flex';
       document.getElementById('legend').style.display='flex';
-      document.getElementById('detectBtn').disabled=false;
+      updateDetectButtonState();
       document.getElementById('roiBtn').disabled=false;
       document.getElementById('clrAllBtn').disabled=false;
+      document.getElementById('singleToPlateBtn').disabled=false;
       document.getElementById('headerFile').textContent=f.name;
       uploadArea.innerHTML='<div style="font-size:1.3rem">&#9989;</div><p><b>'+esc(f.name)+'</b> ('+imgW+'&times;'+imgH+')<br>Click to change</p>';
       render();updateCounts();hideInspector();
@@ -815,6 +907,18 @@ function loadImage(f){
 // =================================================================
 function startROI(){curMode='roi';roiDrawing=false;roiStart=null;updModeUI();toast('Click-drag on image to draw circular ROI')}
 function clearROI(){roi=null;document.getElementById('clrROI').disabled=true;render();toast('ROI cleared')}
+function effectiveStatusWith(o,removedIds,forcedIds){
+  if(!o)return 'rejected';
+  if(o.source==='manual')return 'manual';
+  if((removedIds||[]).includes(o.id))return 'rejected';
+  if((forcedIds||[]).includes(o.id))return 'accepted';
+  return o.status;
+}
+function effectiveStatus(o){return effectiveStatusWith(o,removedAuto,forcedAccepted)}
+function isIncludedAuto(o){
+  const st=effectiveStatus(o);
+  return st==='accepted'||st==='ambiguous';
+}
 
 C.addEventListener('mousedown',e=>{if(curMode==='roi'){const p=cCoords(e);roiStart=p;roiDrawing=true}});
 C.addEventListener('mousemove',e=>{
@@ -835,18 +939,26 @@ C.addEventListener('click',e=>{
   const em=parseInt(document.getElementById('edgeMargin').value)/100;
   if(useR){const effR=roi.r*(1-em);if(Math.hypot(p.x-roi.cx,p.y-roi.cy)>effR)return}
 
-  if(curMode==='add'){
+  if(curMode==='inspect'){
+    inspectAt(p.x,p.y);
+    render();
+    return;
+  } else if(curMode==='add'){
     const c={x:p.x,y:p.y,id:nextId++,source:'manual'};
     manualCols.push(c);pushUndo({act:'addM',col:c});
   } else if(curMode==='remove'){
     const scX=imgW/C.getBoundingClientRect().width;
     const rad=Math.max(15,20*scX);
     let bd=rad,bt=null,bi=-1;
-    // Check accepted auto objects
-    const accepted=allObjects.filter(o=>o.status==='accepted'&&!removedAuto.includes(o.id));
+    // Check included auto objects
+    const accepted=allObjects.filter(o=>isIncludedAuto(o));
     for(let i=0;i<accepted.length;i++){const d=Math.hypot(accepted[i].x-p.x,accepted[i].y-p.y);if(d<bd){bd=d;bt='auto';bi=accepted[i].id}}
     for(let i=0;i<manualCols.length;i++){const d=Math.hypot(manualCols[i].x-p.x,manualCols[i].y-p.y);if(d<bd){bd=d;bt='manual';bi=i}}
-    if(bt==='auto'){removedAuto.push(bi);pushUndo({act:'remA',id:bi})}
+    if(bt==='auto'){
+      forcedAccepted=forcedAccepted.filter(id=>id!==bi);
+      if(!removedAuto.includes(bi))removedAuto.push(bi);
+      pushUndo({act:'remA',id:bi})
+    }
     else if(bt==='manual'){const rm=manualCols.splice(bi,1)[0];pushUndo({act:'remM',col:rm,idx:bi})}
   }
   // Inspect: find nearest object to click
@@ -873,8 +985,7 @@ function showInspector(o){
   inspectedId=o.id;
   document.getElementById('inspEmpty').style.display='none';
   document.getElementById('inspContent').style.display='block';
-  const isRem=removedAuto.includes(o.id);
-  let st=o.source==='manual'?'manual':isRem?'rejected':o.status;
+  const st=effectiveStatus(o);
   document.getElementById('inspTitle').textContent='Object #'+o.id+(o.splitFrom!=null?' (split)':'');
   const stEl=document.getElementById('inspStatus');
   stEl.textContent=st.charAt(0).toUpperCase()+st.slice(1);
@@ -894,12 +1005,31 @@ function showInspector(o){
     const lbl=document.createElement('div');lbl.style.cssText='font-size:.72rem;color:var(--muted);margin-bottom:3px';lbl.textContent='Reason codes:';rl.appendChild(lbl);
     for(const r of o.reasons){const s=document.createElement('span');s.className='reason-tag';s.textContent=r;rl.appendChild(s)}
   }
-  if(isRem){const s=document.createElement('span');s.className='reason-tag';s.textContent='USER_REMOVED';rl.appendChild(s)}
+  if(removedAuto.includes(o.id)){const s=document.createElement('span');s.className='reason-tag';s.textContent='USER_REJECTED';rl.appendChild(s)}
+  if(forcedAccepted.includes(o.id)){const s=document.createElement('span');s.className='reason-tag';s.textContent='USER_ACCEPTED';rl.appendChild(s)}
+  const isManual=o.source==='manual';
+  $('inspAcceptBtn').disabled=isManual;
+  $('inspRejectBtn').disabled=isManual;
+  $('inspResetBtn').disabled=isManual||(!removedAuto.includes(o.id)&&!forcedAccepted.includes(o.id));
 }
 function hideInspector(){
   document.getElementById('inspEmpty').style.display='block';
   document.getElementById('inspContent').style.display='none';
   inspectedId=null;
+}
+function setInspectedDecision(action){
+  if(inspectedId==null)return;
+  const o=allObjects.find(ob=>ob.id===inspectedId);
+  if(!o||o.source==='manual')return;
+  removedAuto=removedAuto.filter(id=>id!==o.id);
+  forcedAccepted=forcedAccepted.filter(id=>id!==o.id);
+  if(action==='accept'){
+    if(o.status!=='accepted')forcedAccepted.push(o.id);
+  }else if(action==='reject'){
+    removedAuto.push(o.id);
+  }
+  showInspector(o);
+  render();updateCounts();renderObjectList();
 }
 
 // =================================================================
@@ -996,21 +1126,17 @@ function labelAndFeature(mask,w,h,srcGray){
         }
         if(isBorder)comp.borderPx.push(ci);
       }
-      // Chain-code perimeter: walk border pixels, count straight=1.0 diagonal=sqrt(2)
-      // For efficiency, estimate from border pixel count with correction factor
-      // More accurate: sum neighbor distances between adjacent border pixels
-      // Best practical approach: count 4-connected bg neighbors as chain steps
+      // Estimate perimeter from exposed 4-neighbor edges.
+      // The previous 8-neighbor background sum inflated perimeter and made
+      // circularity artificially low for dense but valid colonies.
       {
         let perimSum=0;
         for(const bi of comp.borderPx){
           const bx=bi%w,by=(bi-bx)/w;
-          // Count how many of the 8 neighbors are background — each contributes a boundary segment
-          // Straight neighbor bg → 1.0 edge length, diagonal neighbor bg → sqrt(2)/2 edge length
-          for(let d=0;d<8;d++){
-            const nx=bx+dx8[d],ny=by+dy8[d];
-            if(nx<0||nx>=w||ny<0||ny>=h){perimSum+=(d<4?1.0:0.707);continue}
-            if(!mask[ny*w+nx])perimSum+=(d<4?1.0:0.707);
-          }
+          if(bx===0||!mask[by*w+bx-1])perimSum+=1;
+          if(bx===w-1||!mask[by*w+bx+1])perimSum+=1;
+          if(by===0||!mask[(by-1)*w+bx])perimSum+=1;
+          if(by===h-1||!mask[(by+1)*w+bx])perimSum+=1;
         }
         comp.perim=perimSum;
       }
@@ -1026,12 +1152,225 @@ function labelAndFeature(mask,w,h,srcGray){
   return {labels,comps};
 }
 
+function buildCircularRoiMask(w,h,circularROI,edgeMarginPct){
+  const roiMask=new Uint8Array(w*h);
+  const effR=circularROI.r*(1-edgeMarginPct);
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++)roiMask[y*w+x]=Math.hypot(x-circularROI.cx,y-circularROI.cy)<=effR?1:0;
+  return roiMask;
+}
+
+function enhanceMaskForFaintColonies(mask,src,w,h,minSize,roiMask,invert){
+  const n=w*h;
+  const localMean=gaussBlur1D(src,w,h,Math.max(1.8,Math.min(w,h)/90));
+  let sum=0,sum2=0,count=0;
+  const response=new Float32Array(n);
+  for(let i=0;i<n;i++){
+    if(roiMask&&!roiMask[i])continue;
+    const v=invert?(localMean[i]-src[i]):(src[i]-localMean[i]);
+    const clipped=v>0?v:0;
+    response[i]=clipped;
+    sum+=clipped;sum2+=clipped*clipped;count++;
+  }
+  if(!count)return;
+  const mean=sum/count;
+  const variance=Math.max(0,sum2/count-mean*mean);
+  const std=Math.sqrt(variance);
+  const hardThr=Math.max(5.5,mean+std*1.1);
+  const softThr=hardThr*0.55;
+  let faintMask=new Uint8Array(n);
+  for(let i=0;i<n;i++){
+    if(mask[i])continue;
+    if(roiMask&&!roiMask[i])continue;
+    if(response[i]>=hardThr)faintMask[i]=1;
+  }
+  if(!faintMask.some(v=>v))return;
+  const grown=new Uint8Array(faintMask);
+  for(let y=1;y<h-1;y++)for(let x=1;x<w-1;x++){
+    const i=y*w+x;
+    if(grown[i]||mask[i]||(roiMask&&!roiMask[i])||response[i]<softThr)continue;
+    let touch=false;
+    for(let dy=-1;dy<=1&&!touch;dy++)for(let dx=-1;dx<=1;dx++)if((dx||dy)&&faintMask[(y+dy)*w+x+dx]){touch=true;break}
+    if(touch)grown[i]=1;
+  }
+  faintMask=grown;
+  const {labels:fmLabels,objects:fmObjects}=labelAndFeatureBatch(faintMask,response,w,h);
+  const minKeep=Math.max(3,Math.min(10,Math.floor(minSize*0.35)));
+  const maxKeep=Math.max(minKeep+2,Math.min(Math.max(30,minSize*3),160));
+  const keep=new Set();
+  for(let i=0;i<fmObjects.length;i++){
+    const comp=fmObjects[i];
+    const area=comp.pixels;
+    if(area<minKeep||area>maxKeep)continue;
+    const perim=comp.perim||1;
+    const circ=Math.min(1,4*Math.PI*area/(perim*perim));
+    const meanResp=comp.sumI/Math.max(1,area);
+    if(circ<0.08)continue;
+    if(meanResp<hardThr*0.85)continue;
+    keep.add(i+1);
+  }
+  if(!keep.size)return;
+  for(let i=0;i<n;i++)if(keep.has(fmLabels[i]))mask[i]=1;
+}
+
+function tuneWatershedParams(compPixels,minSize,hFrac,peakDistFrac){
+  const ratio=compPixels/Math.max(1,minSize);
+  if(ratio<=3)return {hFrac,peakDistFrac};
+  const strength=Math.min(0.35,0.08+Math.log2(ratio/3)*0.08);
+  return {
+    hFrac:Math.max(0.08,hFrac*(1-strength)),
+    peakDistFrac:Math.max(0.08,peakDistFrac*(1-strength*0.85))
+  };
+}
+
+function collectDistanceSeeds(dist,bw,bh,mX,mY,hVal,minPD){
+  const cands=[];
+  for(let y=1;y<bh-1;y++)for(let x=1;x<bw-1;x++){
+    const i=y*bw+x;if(dist[i]<hVal)continue;
+    let isMax=true;
+    for(let dy=-1;dy<=1&&isMax;dy++)for(let dx=-1;dx<=1&&isMax;dx++)if((dy||dx)&&dist[(y+dy)*bw+x+dx]>dist[i])isMax=false;
+    if(isMax)cands.push({gx:x+mX,gy:y+mY,lx:x,ly:y,d:dist[i]});
+  }
+  cands.sort((a,b)=>b.d-a.d);
+  const seeds=[];
+  for(const c of cands){
+    let ok=true;
+    for(const s of seeds)if(Math.hypot(c.gx-s.gx,c.gy-s.gy)<minPD){ok=false;break}
+    if(ok)seeds.push(c);
+  }
+  return seeds;
+}
+
+function computeLocalColonyResponse(grayData,labels,compLabel,w,h,mX,mY,bw,bh,invert){
+  if(!grayData)return null;
+  const patch=new Float32Array(bw*bh);
+  let sum=0,sum2=0,count=0,maxResp=0;
+  for(let y=0;y<bh;y++)for(let x=0;x<bw;x++){
+    const gx=x+mX,gy=y+mY,gi=gy*w+gx,pi=y*bw+x;
+    patch[pi]=grayData[gi];
+  }
+  const sigma=Math.max(1.2,Math.min(4.5,Math.min(bw,bh)/18));
+  const smooth=gaussBlur1D(patch,bw,bh,sigma);
+  const response=new Float32Array(bw*bh);
+  for(let y=1;y<bh-1;y++)for(let x=1;x<bw-1;x++){
+    const gx=x+mX,gy=y+mY,gi=gy*w+gx,pi=y*bw+x;
+    if(labels[gi]!==compLabel)continue;
+    const v=invert?(patch[pi]-smooth[pi]):(smooth[pi]-patch[pi]);
+    const rv=v>0?v:0;
+    response[pi]=rv;
+    sum+=rv;sum2+=rv*rv;count++;
+    if(rv>maxResp)maxResp=rv;
+  }
+  if(!count||maxResp<3)return null;
+  return {response,mean:sum/count,std:Math.sqrt(Math.max(0,sum2/count-(sum/count)*(sum/count))),maxResp};
+}
+
+function collectIntensitySeeds(responseStats,labels,compLabel,w,h,mX,mY,bw,bh,minPD,maxSeeds,dist,minDist,stdFactor=1.55,peakFactor=0.62){
+  if(!responseStats)return [];
+  const {response,mean,std,maxResp}=responseStats;
+  const thr=Math.max(mean+std*stdFactor,maxResp*peakFactor,5.5);
+  const cands=[];
+  for(let y=1;y<bh-1;y++)for(let x=1;x<bw-1;x++){
+    const gx=x+mX,gy=y+mY,gi=gy*w+gx,pi=y*bw+x,rv=response[pi];
+    if(labels[gi]!==compLabel||rv<thr||(dist&&dist[pi]<minDist))continue;
+    let isMax=true;
+    for(let dy=-1;dy<=1&&isMax;dy++)for(let dx=-1;dx<=1&&isMax;dx++)if((dy||dx)&&response[(y+dy)*bw+x+dx]>rv)isMax=false;
+    if(isMax)cands.push({gx,gy,lx:x,ly:y,d:rv,kind:'intensity'});
+  }
+  cands.sort((a,b)=>b.d-a.d);
+  const seeds=[];
+  const keepDist=Math.max(3,minPD);
+  for(const c of cands){
+    let ok=true;
+    for(const s of seeds)if(Math.hypot(c.gx-s.gx,c.gy-s.gy)<keepDist){ok=false;break}
+    if(ok){
+      seeds.push(c);
+      if(maxSeeds&&seeds.length>=maxSeeds)break;
+    }
+  }
+  return seeds;
+}
+
+function mergeSeedSets(baseSeeds,extraSeeds,minPD,maxSeeds){
+  const merged=baseSeeds.slice().sort((a,b)=>b.d-a.d);
+  const extras=extraSeeds.slice().sort((a,b)=>b.d-a.d);
+  for(const c of extras){
+    let ok=true;
+    for(const s of merged)if(Math.hypot(c.gx-s.gx,c.gy-s.gy)<minPD){ok=false;break}
+    if(ok)merged.push(c);
+  }
+  merged.sort((a,b)=>b.d-a.d);
+  return maxSeeds&&merged.length>maxSeeds?merged.slice(0,maxSeeds):merged;
+}
+
+function mergeTinyWatershedRegions(mm,bw,bh,minPixels){
+  if(minPixels<=1)return mm;
+  const maxLabel=mm.reduce((m,v)=>v>m?v:m,0);
+  if(maxLabel<=1)return mm;
+  const neighborDirs=[[1,0],[0,1]];
+  for(let iter=0;iter<6;iter++){
+    const counts=new Int32Array(maxLabel+1);
+    const adj=Array.from({length:maxLabel+1},()=>new Map());
+    for(let i=0;i<mm.length;i++)if(mm[i]>0)counts[mm[i]]++;
+    for(let y=0;y<bh;y++)for(let x=0;x<bw;x++){
+      const i=y*bw+x,a=mm[i];
+      if(!a)continue;
+      for(const [dx,dy] of neighborDirs){
+        const nx=x+dx,ny=y+dy;
+        if(nx>=bw||ny>=bh)continue;
+        const b=mm[ny*bw+nx];
+        if(!b||a===b)continue;
+        adj[a].set(b,(adj[a].get(b)||0)+1);
+        adj[b].set(a,(adj[b].get(a)||0)+1);
+      }
+    }
+    const tiny=[];
+    for(let label=1;label<=maxLabel;label++)if(counts[label]&&counts[label]<minPixels)tiny.push(label);
+    if(!tiny.length)break;
+    tiny.sort((a,b)=>counts[a]-counts[b]);
+    let changed=false;
+    for(const label of tiny){
+      if(!counts[label]||counts[label]>=minPixels)continue;
+      let best=0,bestScore=-1;
+      for(const [other,shared] of adj[label]){
+        if(!counts[other]||other===label)continue;
+        const score=shared*1000+counts[other];
+        if(score>bestScore){bestScore=score;best=other}
+      }
+      if(!best)continue;
+      for(let i=0;i<mm.length;i++)if(mm[i]===label)mm[i]=best;
+      counts[best]+=counts[label];
+      counts[label]=0;
+      changed=true;
+    }
+    if(!changed)break;
+  }
+  return mm;
+}
+
+function getSplitSensitivityProfile(splitSens){
+  const sens=Math.max(0,Math.min(1,splitSens!=null?splitSens:0.5));
+  const bias=(sens-0.5)*2;
+  return {
+    sens,
+    bias,
+    intensityEligibilityFactor:Math.max(3.8,5.0-bias*1.2),
+    maxSeedsFactor:Math.max(1.5,1.9-bias*0.35),
+    seedMergeFactor:Math.max(0.5,0.68-bias*0.1),
+    intensityPeakFactor:Math.max(0.6,0.82-bias*0.14),
+    intensityValleyFactor:Math.max(0.26,0.38-bias*0.07),
+    intensityThresholdStd:Math.max(0.8,1.55-bias*0.35),
+    intensityThresholdPeak:Math.max(0.48,0.62-bias*0.08),
+    fragmentMergeFactor:Math.max(0.35,0.6-bias*0.18),
+    lowSeedAllowance:bias>0.2?3:2
+  };
+}
+
 
 
 // =================================================================
 //  WATERSHED SPLITTING
 // =================================================================
-function watershedSplit(comp,mask,w,h,hFrac,peakDistFrac,minSz,labels,compLabel){
+function watershedSplit(comp,mask,w,h,hFrac,peakDistFrac,minSz,labels,compLabel,srcGray,invert,splitSens){
   const cx=Math.round(comp.sumX/comp.pixels),cy=Math.round(comp.sumY/comp.pixels);
   const estR=Math.ceil(Math.sqrt(comp.pixels/Math.PI))+10;
   const mX=Math.max(0,cx-estR*2),mY=Math.max(0,cy-estR*2);
@@ -1055,20 +1394,33 @@ function watershedSplit(comp,mask,w,h,hFrac,peakDistFrac,minSz,labels,compLabel)
   }
   let maxD=0;for(let i=0;i<dist.length;i++)if(dist[i]>maxD)maxD=dist[i];
   if(maxD<6)return [comp];
-  // h-maxima suppression
-  const hVal=maxD*hFrac;
-  const minPD=Math.sqrt(comp.pixels/Math.PI)*peakDistFrac;
-  const cands=[];
-  for(let y=1;y<bh-1;y++)for(let x=1;x<bw-1;x++){
-    const i=y*bw+x;if(dist[i]<hVal)continue;
-    let isMax=true;
-    for(let dy=-1;dy<=1&&isMax;dy++)for(let dx=-1;dx<=1&&isMax;dx++)if((dy||dx)&&dist[(y+dy)*bw+x+dx]>dist[i])isMax=false;
-    if(isMax)cands.push({gx:x+mX,gy:y+mY,lx:x,ly:y,d:dist[i]});
+  const responseStats=computeLocalColonyResponse(srcGray,labels,compLabel,w,h,mX,mY,bw,bh,invert);
+  const splitCfg=getSplitSensitivityProfile(splitSens);
+  const wsTuned=tuneWatershedParams(comp.pixels,minSz,hFrac,peakDistFrac);
+  let seeds=collectDistanceSeeds(dist,bw,bh,mX,mY,maxD*wsTuned.hFrac,Math.sqrt(comp.pixels/Math.PI)*wsTuned.peakDistFrac);
+  const maxSeeds=Math.max(2,Math.min(8,Math.round(comp.pixels/Math.max(minSz*splitCfg.maxSeedsFactor,1))));
+  if(responseStats&&comp.pixels>minSz*splitCfg.intensityEligibilityFactor&&seeds.length<=splitCfg.lowSeedAllowance){
+    const intensitySeeds=collectIntensitySeeds(
+      responseStats,labels,compLabel,w,h,mX,mY,bw,bh,
+      Math.max(4,Math.sqrt(comp.pixels/Math.PI)*wsTuned.peakDistFrac*splitCfg.intensityPeakFactor),
+      maxSeeds,dist,maxD*splitCfg.intensityValleyFactor,splitCfg.intensityThresholdStd,splitCfg.intensityThresholdPeak
+    );
+    if(intensitySeeds.length>1){
+      seeds=mergeSeedSets(seeds,intensitySeeds,Math.max(4,Math.sqrt(comp.pixels/Math.PI)*wsTuned.peakDistFrac*splitCfg.seedMergeFactor),maxSeeds);
+    }
   }
-  cands.sort((a,b)=>b.d-a.d);
-  const seeds=[];
-  for(const c of cands){let ok=true;for(const s of seeds)if(Math.hypot(c.gx-s.gx,c.gy-s.gy)<minPD){ok=false;break}if(ok)seeds.push(c)}
+  if(seeds.length<=1&&comp.pixels>minSz*4){
+    seeds=collectDistanceSeeds(dist,bw,bh,mX,mY,maxD*Math.max(0.06,wsTuned.hFrac*0.75),Math.sqrt(comp.pixels/Math.PI)*Math.max(0.07,wsTuned.peakDistFrac*0.82));
+  }
   if(seeds.length<=1)return [comp];
+  const floodScore=new Float32Array(bw*bh);
+  const respNorm=responseStats&&responseStats.maxResp>0?responseStats.maxResp:0;
+  for(let i=0;i<floodScore.length;i++){
+    if(!lm[i]){floodScore[i]=0;continue}
+    const shapeScore=maxD>0?dist[i]/maxD:0;
+    const intensityScore=respNorm>0?responseStats.response[i]/respNorm:0;
+    floodScore[i]=shapeScore*0.74+intensityScore*0.26;
+  }
   // Fix #8: Priority-queue watershed (flood from highest dist first)
   const mm=new Int32Array(bw*bh);
   // Min-heap keyed by -dist (highest dist = highest priority)
@@ -1077,13 +1429,14 @@ function watershedSplit(comp,mask,w,h,hFrac,peakDistFrac,minSz,labels,compLabel)
   function hpDn(i){const n=hp.length;while(true){let s=i;const l=2*i+1,r=2*i+2;if(l<n&&hp[l][0]<hp[s][0])s=l;if(r<n&&hp[r][0]<hp[s][0])s=r;if(s===i)break;const t=hp[s];hp[s]=hp[i];hp[i]=t;i=s}}
   function hpPush(v){hp.push(v);hpUp(hp.length-1)}
   function hpPop(){const top=hp[0];const last=hp.pop();if(hp.length>0){hp[0]=last;hpDn(0)}return top}
-  for(let si=0;si<seeds.length;si++){const s=seeds[si],li=s.ly*bw+s.lx;mm[li]=si+1;hpPush([-dist[li],li])}
+  for(let si=0;si<seeds.length;si++){const s=seeds[si],li=s.ly*bw+s.lx;mm[li]=si+1;hpPush([-(floodScore[li]||dist[li]),li])}
   while(hp.length>0){
     const [,ci]=hpPop(),cx2=ci%bw,cy2=(ci-cx2)/bw,m=mm[ci];
     const nb=[];
     if(cx2>0)nb.push(ci-1);if(cx2<bw-1)nb.push(ci+1);if(cy2>0)nb.push(ci-bw);if(cy2<bh-1)nb.push(ci+bw);
-    for(const ni of nb)if(lm[ni]&&!mm[ni]){mm[ni]=m;hpPush([-dist[ni],ni])}
+    for(const ni of nb)if(lm[ni]&&!mm[ni]){mm[ni]=m;hpPush([-(floodScore[ni]||dist[ni]),ni])}
   }
+  mergeTinyWatershedRegions(mm,bw,bh,Math.max(4,Math.floor(minSz*splitCfg.fragmentMergeFactor)));
   // Collect sub-components
   const scs=[];
   for(let si=0;si<seeds.length;si++)scs.push({pixels:0,sumX:0,sumY:0,perim:0,borderPx:[],sumI:0,sumXX:0,sumYY:0,sumXY:0});
@@ -1094,14 +1447,18 @@ function watershedSplit(comp,mask,w,h,hFrac,peakDistFrac,minSz,labels,compLabel)
     sc.pixels++;sc.sumX+=gx;sc.sumY+=gy;
     sc.sumI+=(grayD?grayD[gy*w+gx]:128);
     let isBorder=false;
-    // Check 8-connected for border + chain-code perimeter
+    // Check 8-connected for border, but use exposed 4-neighbor edges for perimeter.
     let perimContrib=0;
     for(let d=0;d<8;d++){
       const nx=x+dx8[d],ny=y+dy8[d];
-      if(nx<0||nx>=bw||ny<0||ny>=bh){isBorder=true;perimContrib+=(d<4?1.0:0.707);continue}
+      if(nx<0||nx>=bw||ny<0||ny>=bh){isBorder=true;continue}
       const nm=mm[ny*bw+nx];
-      if(nm!==m){isBorder=true;perimContrib+=(d<4?1.0:0.707)}
+      if(nm!==m)isBorder=true;
     }
+    if(x===0||mm[y*bw+x-1]!==m)perimContrib+=1;
+    if(x===bw-1||mm[y*bw+x+1]!==m)perimContrib+=1;
+    if(y===0||mm[(y-1)*bw+x]!==m)perimContrib+=1;
+    if(y===bh-1||mm[(y+1)*bw+x]!==m)perimContrib+=1;
     sc.perim+=perimContrib;
     if(isBorder)sc.borderPx.push(gy*w+gx);
   }
@@ -1122,14 +1479,50 @@ function watershedSplit(comp,mask,w,h,hFrac,peakDistFrac,minSz,labels,compLabel)
 // =================================================================
 //  MAIN DETECTION
 // =================================================================
+async function rerunCurrentPlatePreviewDetection(){
+  if(!batchFiles.length||!batchFiles[0]||!batchFiles[0].img||!batchWellTemplate)return;
+  const f=batchFiles[0];
+  const settings=getDetectionSettings();
+  const overlay=$('procOverlay');
+  overlay.classList.add('active');
+  $('detectBtn').disabled=true;
+  $('batchRunBtn').disabled=true;
+  $('detectWellsBtn').disabled=true;
+  $('adjustWellsBtn').disabled=true;
+  setBatchProgress('Reprocessing current plate preview…',0,true);
+  try{
+    const result=await processPlateImageAsync(f,settings,cloneWells(batchWellTemplate),prog=>{
+      const ratio=prog.total?prog.done/prog.total:0;
+      setBatchProgress('Reprocessing '+prog.label+'…',ratio,true);
+    });
+    f.result=result;
+    renderWellGrid(batchWellTemplate,f.result.wells,0);
+    loadBatchPreviewIntoMain(f,batchWellTemplate,f.result.wells,0);
+    showWellPreview(f.img,f.w,f.h,batchWellTemplate,f.result.wells,0);
+    renderBatchResults();
+    updateBatchUI();
+    toast('Plate preview updated with current settings');
+  }catch(err){
+    toast('Plate reprocessing failed: '+err.message);
+  }finally{
+    clearBatchProgress('Plate preview updated');
+    overlay.classList.remove('active');
+    updateBatchUI();
+    updateDetectButtonState();
+  }
+}
 function runDetection(){
+  if(activeTab==='batch'&&batchImageMode==='plate'&&batchMainPreview&&!plateReviewState&&batchFiles[0]&&batchFiles[0].result){
+    rerunCurrentPlatePreviewDetection();
+    return;
+  }
   if(!origPx)return;
   // Fix #4: Warn if manual edits will be lost
-  if(manualCols.length>0||removedAuto.length>0){
-    if(!confirm('Re-running detection will clear '+manualCols.length+' manual additions and '+removedAuto.length+' manual removals. Continue?'))return;
+  if(manualCols.length>0||removedAuto.length>0||forcedAccepted.length>0){
+    if(!confirm('Re-running detection will clear '+manualCols.length+' manual additions, '+removedAuto.length+' manual rejections, and '+forcedAccepted.length+' manual acceptances. Continue?'))return;
   }
   const t0=performance.now();
-  prevAcceptedCount=allObjects.filter(o=>o.status==='accepted').length+manualCols.length-removedAuto.length;
+  prevAcceptedCount=allObjects.filter(o=>isIncludedAuto(o)).length+manualCols.length;
 
   const blurRadius=parseInt($('blurR').value);
   const threshMeth=$('threshMethod').value;
@@ -1147,19 +1540,20 @@ function runDetection(){
   const em=parseInt($('edgeMargin').value)/100;
   const hFrac=parseInt($('wsH').value)/100;
   const peakDistFrac=parseInt($('wsPD').value)/100;
+  const splitSens=parseInt($('splitSens').value)/100;
   const niblackK=parseInt($('niblackK').value)/100;
   const sauvolaR=parseInt($('sauvolaR').value);
 
   resetP();
 
   // Save previous state for delta highlights
-  prevObjects=allObjects.filter(o=>o.status==='accepted'||o.status==='ambiguous').map(o=>({id:o.id,x:o.x,y:o.y,area:o.area}));
+  prevObjects=allObjects.filter(o=>isIncludedAuto(o)).map(o=>({id:o.id,x:o.x,y:o.y,area:o.area}));
 
   // Fix #6: Show processing overlay, defer pipeline to allow paint
   const _overlay=$('procOverlay');_overlay.classList.add('active');$('detectBtn').disabled=true;
-  requestAnimationFrame(()=>requestAnimationFrame(()=>{_runPipeline(blurRadius,threshMeth,threshManual,adaptW,adaptO,minSize,maxSize,minCircV,minSolV,maxEccV,invert,doBgSub,doWS,borderRej,useR,em,hFrac,peakDistFrac,niblackK,sauvolaR,t0);_overlay.classList.remove('active');$('detectBtn').disabled=false}));
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{_runPipeline(blurRadius,threshMeth,threshManual,adaptW,adaptO,minSize,maxSize,minCircV,minSolV,maxEccV,invert,doBgSub,doWS,borderRej,useR,em,hFrac,peakDistFrac,splitSens,niblackK,sauvolaR,t0);_overlay.classList.remove('active');updateDetectButtonState()}));
 }
-function _runPipeline(blurRadius,threshMeth,threshManual,adaptW,adaptO,minSize,maxSize,minCircV,minSolV,maxEccV,invert,doBgSub,doWS,borderRej,useR,em,hFrac,peakDistFrac,niblackK,sauvolaR,t0){
+function _runPipeline(blurRadius,threshMeth,threshManual,adaptW,adaptO,minSize,maxSize,minCircV,minSolV,maxEccV,invert,doBgSub,doWS,borderRej,useR,em,hFrac,peakDistFrac,splitSens,niblackK,sauvolaR,t0){
   // 1. Grayscale
   toGray(); // marks sGray
 
@@ -1206,6 +1600,8 @@ function _runPipeline(blurRadius,threshMeth,threshManual,adaptW,adaptO,minSize,m
   }
   markP('sThresh');
 
+  enhanceMaskForFaintColonies(binMask,detectSrc,imgW,imgH,minSize,roiMask,invert);
+
   // 5. Morphology cleanup: remove tiny specks, fill small holes
   // Simple: remove connected components smaller than minSize/4
   {
@@ -1230,7 +1626,7 @@ function _runPipeline(blurRadius,threshMeth,threshManual,adaptW,adaptO,minSize,m
     for(let ci=0;ci<comps.length;ci++){
       const comp=comps[ci];
       if(comp.pixels>=minSize&&comp.pixels>minSize*2.5){
-        const subs=watershedSplit(comp,binMask,imgW,imgH,hFrac,peakDistFrac,minSize,labels,ci+1);
+        const subs=watershedSplit(comp,binMask,imgW,imgH,hFrac,peakDistFrac,minSize,labels,ci+1,grayD,invert,splitSens);
         if(subs.length>1){for(const s of subs)s.splitFrom=true;finalComps.push(...subs);continue}
       }
       finalComps.push(comp);
@@ -1297,13 +1693,13 @@ function _runPipeline(blurRadius,threshMeth,threshManual,adaptW,adaptO,minSize,m
   markP('sFilter');
 
   // Reset manual state
-  manualCols=[];removedAuto=[];undoStack=[];redoStack=[];
+  manualCols=[];removedAuto=[];forcedAccepted=[];undoStack=[];redoStack=[];
 
   const elapsed=Math.round(performance.now()-t0);
 
   // Compute delta highlights (match by proximity)
   deltaNewIds=new Set();deltaLostIds=new Set();
-  const curAccepted=allObjects.filter(o=>o.status==='accepted'||o.status==='ambiguous');
+  const curAccepted=allObjects.filter(o=>isIncludedAuto(o));
   const matchDist=Math.max(15,imgW/50);
   const matchedPrev=new Set();
   for(const cur of curAccepted){
@@ -1320,9 +1716,9 @@ function _runPipeline(blurRadius,threshMeth,threshManual,adaptW,adaptO,minSize,m
   window._deltaLost=prevObjects.filter(p=>deltaLostIds.has(p.id));
 
   render();updateCounts();updateQCFlags();renderObjectList();
-  const acc=allObjects.filter(o=>o.status==='accepted').length;
-  const rej=allObjects.filter(o=>o.status==='rejected').length;
-  const amb=allObjects.filter(o=>o.status==='ambiguous').length;
+  const acc=allObjects.filter(o=>effectiveStatus(o)==='accepted').length;
+  const rej=allObjects.filter(o=>effectiveStatus(o)==='rejected').length;
+  const amb=allObjects.filter(o=>effectiveStatus(o)==='ambiguous').length;
   toast('Detected '+acc+' accepted, '+amb+' ambiguous, '+rej+' rejected ('+elapsed+'ms)');
   updateStabilityChart();
   $('compareBar').classList.add('active');
@@ -1342,6 +1738,67 @@ function render(){
   else if(overlayMode==='mask'&&binMask){drawMaskOv()}
   else if(overlayMode==='accrej'&&legendVis.rejected){drawAccRejOv()}
   else X.drawImage(origImg,0,0);
+
+  if(batchMainPreview&&activeTab==='batch'&&batchImageMode==='plate'&&!plateReviewState){
+    const wells=batchMainPreview.wells||[];
+    const results=batchMainPreview.results||null;
+    X.save();
+    X.lineWidth=Math.max(2,imgW/300);
+    X.font=Math.max(14,imgW/40)+'px sans-serif';
+    X.textAlign='center';
+    X.textBaseline='middle';
+    for(let i=0;i<wells.length;i++){
+      const wl=wells[i];
+      X.strokeStyle='#38bdf8';
+      X.setLineDash([8,5]);
+      X.beginPath();X.arc(wl.cx,wl.cy,wl.r,0,Math.PI*2);X.stroke();
+      X.setLineDash([]);
+      X.fillStyle='rgba(56,189,248,.22)';
+      X.beginPath();X.arc(wl.cx,wl.cy,wl.r,0,Math.PI*2);X.fill();
+      X.fillStyle='#fff';X.strokeStyle='#000';X.lineWidth=3;
+      X.strokeText(wl.label,wl.cx,wl.cy);X.fillText(wl.label,wl.cx,wl.cy);
+      if(wellAdjustState&&wellAdjustState.selectedWell===i){
+        X.strokeStyle='#2563eb';X.lineWidth=Math.max(3,imgW/220);
+        X.beginPath();X.arc(wl.cx,wl.cy,wl.r+6,0,Math.PI*2);X.stroke();
+      }
+    }
+    if(results){
+      for(const wl of results){
+        const removedIds=wl.review?wl.review.removedAuto:(wl.removedAuto||[]);
+        const forcedIds=wl.review?wl.review.forcedAccepted:(wl.forcedAccepted||[]);
+        const objs=wl.review?wl.review.allObjects:(wl.allObjects||[]);
+        let offsetX=0,offsetY=0;
+        if(wl.review){
+          const fileEntry=batchFiles[batchMainPreview.fileIndex||0];
+          if(fileEntry){
+            const rect=getPlateWellCropRect(fileEntry,wl);
+            offsetX=rect.x0;offsetY=rect.y0;
+          }
+        }
+        X.save();
+        X.beginPath();
+        X.arc(wl.cx,wl.cy,Math.max(0,wl.r-1),0,Math.PI*2);
+        X.clip();
+        for(const o of objs){
+          const st=effectiveStatusWith(o,removedIds,forcedIds);
+          const ox=o.x+offsetX, oy=o.y+offsetY;
+          const r=Math.max(4,Math.sqrt((o.area||16)/Math.PI));
+          if(st==='accepted'){
+            X.strokeStyle=cssVar('--green');X.lineWidth=Math.max(1.2,imgW/800);
+            X.beginPath();X.arc(ox,oy,r,0,Math.PI*2);X.stroke();
+          }else if(st==='ambiguous'){
+            X.strokeStyle=cssVar('--amber');X.lineWidth=Math.max(1.2,imgW/900);X.setLineDash([3,3]);
+            X.beginPath();X.arc(ox,oy,r,0,Math.PI*2);X.stroke();X.setLineDash([]);
+          }else{
+            X.strokeStyle=cssVar('--gray-slate');X.lineWidth=Math.max(1,imgW/1000);X.setLineDash([4,4]);
+            X.beginPath();X.arc(ox,oy,r,0,Math.PI*2);X.stroke();X.setLineDash([]);
+          }
+        }
+        X.restore();
+      }
+    }
+    X.restore();
+  }
 
   // ROI
   if(roi){
@@ -1364,7 +1821,7 @@ function render(){
   if(overlayMode==='accrej'&&legendVis.rejected){
     X.setLineDash([6,4]);X.strokeStyle=cssVar('--gray-slate');X.lineWidth=lw;
     for(const o of allObjects){
-      if(o.status!=='rejected')continue;
+      if(effectiveStatus(o)!=='rejected')continue;
       const r=Math.max(4,Math.sqrt(o.area/Math.PI));
       X.beginPath();X.arc(o.x,o.y,r,0,Math.PI*2);X.stroke();
     }
@@ -1375,7 +1832,7 @@ function render(){
   if(legendVis.ambiguous){
   X.setLineDash([2,3]);X.strokeStyle=cssVar('--amber');X.lineWidth=lw;
   for(const o of allObjects){
-    if(o.status!=='ambiguous'||removedAuto.includes(o.id))continue;
+    if(effectiveStatus(o)!=='ambiguous')continue;
     const r=Math.max(5,Math.sqrt(o.area/Math.PI));
     X.beginPath();X.arc(o.x,o.y,r,0,Math.PI*2);X.stroke();
     // ? marker
@@ -1389,7 +1846,7 @@ function render(){
   if(legendVis.accepted){
   X.strokeStyle=cssVar('--green');X.lineWidth=lw;
   for(const o of allObjects){
-    if(o.status!=='accepted'||removedAuto.includes(o.id))continue;
+    if(effectiveStatus(o)!=='accepted')continue;
     const r=Math.max(5,Math.sqrt(o.area/Math.PI));
     X.beginPath();X.arc(o.x,o.y,r,0,Math.PI*2);X.stroke();
     X.fillStyle='rgba(34,197,94,.12)';X.beginPath();X.arc(o.x,o.y,r,0,Math.PI*2);X.fill();
@@ -1490,10 +1947,10 @@ function drawAccRejOv(){
 //  COUNTS & DELTA
 // =================================================================
 function updateCounts(){
-  const accAuto=allObjects.filter(o=>(o.status==='accepted'||o.status==='ambiguous')&&!removedAuto.includes(o.id)).length;
+  const accAuto=allObjects.filter(o=>isIncludedAuto(o)).length;
   const mc=manualCols.length;
   const total=accAuto+mc;
-  const rej=allObjects.filter(o=>o.status==='rejected').length;
+  const rej=allObjects.filter(o=>effectiveStatus(o)==='rejected').length;
   $('totalCount').textContent=total;
   $('breakdown').textContent='Auto: '+accAuto+' | Manual: +'+mc+' | Removed: -'+removedAuto.length+' | Rejected: '+rej;
   $('saveSmpBtn').disabled=total===0;
@@ -1507,6 +1964,7 @@ function updateCounts(){
     dc.className='delta-card show '+(delta>0?'delta-pos':delta<0?'delta-neg':'delta-neutral');
     dc.textContent='Count: '+prevAcceptedCount+' → '+total+' ('+(delta>=0?'+':'')+delta+')';
   }
+  savePlateWellReviewState();
 }
 
 // =================================================================
@@ -1514,8 +1972,8 @@ function updateCounts(){
 // =================================================================
 function updateQCFlags(){
   const el=$('qcFlags');el.innerHTML='';
-  const acc=allObjects.filter(o=>o.status==='accepted');
-  const amb=allObjects.filter(o=>o.status==='ambiguous');
+  const acc=allObjects.filter(o=>effectiveStatus(o)==='accepted');
+  const amb=allObjects.filter(o=>effectiveStatus(o)==='ambiguous');
   const flags=[];
 
   // Overcrowded check
@@ -1558,15 +2016,50 @@ function setDetectMode(mode){
   btns[0].classList.toggle('active',detectModeSimple);
   btns[1].classList.toggle('active',!detectModeSimple);
 }
+function initFloatingTips(){
+  const tip=$('floatingTip');
+  if(!tip)return;
+  let activeEl=null;
+  function hideTip(){tip.classList.remove('show');activeEl=null;}
+  function placeTip(evt){
+    if(!activeEl)return;
+    const pad=14;
+    const w=tip.offsetWidth||280;
+    const h=tip.offsetHeight||70;
+    const x=Math.min(window.innerWidth-w-pad,Math.max(pad,evt.clientX+16));
+    const y=Math.max(pad,evt.clientY-h-18);
+    tip.style.left=x+'px';
+    tip.style.top=y+'px';
+  }
+  document.querySelectorAll('.help-tip').forEach(el=>{
+    el.setAttribute('tabindex','0');
+    const content=el.querySelector('.tip-text');
+    const show=evt=>{
+      if(!content)return;
+      activeEl=el;
+      tip.innerHTML=content.innerHTML;
+      tip.classList.add('show');
+      placeTip(evt);
+    };
+    el.addEventListener('mouseenter',show);
+    el.addEventListener('mousemove',placeTip);
+    el.addEventListener('mouseleave',hideTip);
+    el.addEventListener('focus',evt=>show({clientX:evt.target.getBoundingClientRect().left,clientY:evt.target.getBoundingClientRect().top}));
+    el.addEventListener('blur',hideTip);
+  });
+}
 // Start in simple mode
-document.addEventListener('DOMContentLoaded',()=>{setDetectMode('simple')});
+document.addEventListener('DOMContentLoaded',()=>{
+  setDetectMode('simple');
+  initFloatingTips();
+});
 
 // ---- Presets ----
 const PRESETS={
-  cv:{name:'Crystal Violet',blur:2,bgSub:true,invert:true,thresh:'otsu',minSz:20,maxSz:3000,circ:15,sol:50,ecc:95,border:true,ws:true,wsH:15,wsPD:60},
-  mb:{name:'Methylene Blue',blur:3,bgSub:true,invert:true,thresh:'otsu',minSz:15,maxSz:2500,circ:10,sol:40,ecc:95,border:true,ws:true,wsH:12,wsPD:55},
-  sparse:{name:'Sparse',blur:1,bgSub:true,invert:true,thresh:'otsu',minSz:30,maxSz:5000,circ:10,sol:40,ecc:98,border:true,ws:false,wsH:15,wsPD:60},
-  dense:{name:'Dense',blur:2,bgSub:true,invert:true,thresh:'otsu',minSz:15,maxSz:2000,circ:20,sol:55,ecc:90,border:true,ws:true,wsH:10,wsPD:50}
+  cv:{name:'Crystal Violet',blur:2,bgSub:true,invert:true,thresh:'otsu',minSz:20,maxSz:3000,circ:15,sol:50,ecc:95,border:true,ws:true,wsH:15,wsPD:60,splitSens:50},
+  mb:{name:'Methylene Blue',blur:3,bgSub:true,invert:true,thresh:'otsu',minSz:15,maxSz:2500,circ:10,sol:40,ecc:95,border:true,ws:true,wsH:12,wsPD:55,splitSens:45},
+  sparse:{name:'Sparse',blur:1,bgSub:true,invert:true,thresh:'otsu',minSz:30,maxSz:5000,circ:10,sol:40,ecc:98,border:true,ws:false,wsH:15,wsPD:60,splitSens:35},
+  dense:{name:'Dense',blur:2,bgSub:true,invert:true,thresh:'otsu',minSz:15,maxSz:2000,circ:20,sol:55,ecc:90,border:true,ws:true,wsH:10,wsPD:50,splitSens:70}
 };
 function applyPreset(key){
   const p=PRESETS[key]; if(!p)return;
@@ -1583,6 +2076,7 @@ function applyPreset(key){
   $('wsChk').checked=p.ws;
   $('wsH').value=p.wsH;$('wsHV').textContent=(p.wsH/100).toFixed(2);
   $('wsPD').value=p.wsPD;$('wsPDV').textContent=(p.wsPD/100).toFixed(2);
+  $('splitSens').value=p.splitSens;$('splitSensV').textContent=p.splitSens;
   // Highlight active preset
   document.querySelectorAll('.preset-btn').forEach(b=>b.classList.remove('active-preset'));
   const btns=document.querySelectorAll('.preset-btn');
@@ -1596,12 +2090,13 @@ function applyPreset(key){
 function setOverlay(m){overlayMode=m;['tbOrig','tbGray','tbMask','tbAccRej'].forEach(id=>{$(id).classList.toggle('active',id==='tb'+{original:'Orig',gray:'Gray',mask:'Mask',accrej:'AccRej'}[m])});render()}
 function setMode(m){curMode=m;updModeUI()}
 function updModeUI(){
+  $('mInspect').classList.toggle('active',curMode==='inspect');$('tbInspect').classList.toggle('active',curMode==='inspect');
   $('mAdd').classList.toggle('active',curMode==='add');$('mRem').classList.toggle('active',curMode==='remove');
   $('tbAdd').classList.toggle('active',curMode==='add');$('tbRem').classList.toggle('active',curMode==='remove');
   $('tbROI').classList.toggle('active',curMode==='roi');
 }
 function clearManual(){manualCols=[];render();updateCounts()}
-function clearAll(){allObjects=[];manualCols=[];removedAuto=[];undoStack=[];redoStack=[];prevAcceptedCount=0;render();updateCounts();hideInspector()}
+function clearAll(){allObjects=[];manualCols=[];removedAuto=[];forcedAccepted=[];undoStack=[];redoStack=[];prevAcceptedCount=0;render();updateCounts();renderObjectList();hideInspector()}
 function zoomIn(){zoomScale=Math.min(zoomScale*1.3,5);applyZ()}
 function zoomOut(){zoomScale=Math.max(zoomScale/1.3,.1);applyZ()}
 function zoomFit(){const cw=document.getElementById('canvasContainer').parentElement.clientWidth-40;if(imgW>0)zoomScale=Math.min(1,cw/imgW);applyZ()}
@@ -1617,6 +2112,7 @@ $('minSol').addEventListener('input',e=>{$('minSolV').textContent=(parseInt(e.ta
 $('maxEcc').addEventListener('input',e=>{$('maxEccV').textContent=(parseInt(e.target.value)/100).toFixed(2)});
 $('wsH').addEventListener('input',e=>{$('wsHV').textContent=(parseInt(e.target.value)/100).toFixed(2)});
 $('wsPD').addEventListener('input',e=>{$('wsPDV').textContent=(parseInt(e.target.value)/100).toFixed(2)});
+$('splitSens').addEventListener('input',e=>{$('splitSensV').textContent=e.target.value});
 
 // Threshold method switch
 $('threshMethod').addEventListener('change',e=>{
@@ -1643,12 +2139,12 @@ function markP(id){$(id).classList.add('done')}
 function saveSample(){
   const name=$('sampleName').value.trim()||('Sample '+(samples.length+1));
   const cal=parseFloat($('calibration').value)||null;
-  const accepted=allObjects.filter(o=>(o.status==='accepted'||o.status==='ambiguous')&&!removedAuto.includes(o.id));
+  const accepted=allObjects.filter(o=>isIncludedAuto(o));
   samples.push({
     name, filename:origFn, timestamp:new Date().toISOString(),
     auto:accepted.length, manual:manualCols.length, removed:removedAuto.length,
-    rejected:allObjects.filter(o=>o.status==='rejected').length,
-    ambiguous:allObjects.filter(o=>o.status==='ambiguous'&&!removedAuto.includes(o.id)).length,
+    rejected:allObjects.filter(o=>effectiveStatus(o)==='rejected').length,
+    ambiguous:allObjects.filter(o=>effectiveStatus(o)==='ambiguous').length,
     total:accepted.length+manualCols.length,
     calibration:cal,
     settings:getSettings(),
@@ -1684,7 +2180,7 @@ function getSettings(){
     maxEccentricity:$('maxEccV').textContent,
     borderReject:$('borderRej').checked,
     watershed:$('wsChk').checked,
-    wsH:$('wsHV').textContent, wsPeakDist:$('wsPDV').textContent,
+    wsH:$('wsHV').textContent, wsPeakDist:$('wsPDV').textContent, clusterSplitSensitivity:$('splitSens').value,
     edgeMarginPct:$('edgeMargin').value,
     roiUsed:!!(roi&&$('useROI').checked),
     roiCx:roi?Math.round(roi.cx):'',roiCy:roi?Math.round(roi.cy):'',roiR:roi?Math.round(roi.r):'',
@@ -1699,14 +2195,14 @@ function exportSummaryCSV(){
   if(!samples.length)return;
   const h=['Sample','Filename','Timestamp','Auto_Accepted','Ambiguous','Manual_Added','Removed','Rejected','Total',
     'Calibration_um_px','ThreshMethod','ThreshValue','AdaptWin','AdaptOff','BlurR','BgSub','Invert',
-    'MinSize','MaxSize','MinCirc','MinSol','MaxEcc','BorderReject','Watershed','WS_h','WS_PeakDist',
+    'MinSize','MaxSize','MinCirc','MinSol','MaxEcc','BorderReject','Watershed','WS_h','WS_PeakDist','ClusterSplitSensitivity',
     'EdgeMarginPct','ROI_Used','ROI_Cx','ROI_Cy','ROI_R','ImgW','ImgH','QC_Flags'];
   let csv=h.join(',')+'\n';
   for(const s of samples){const st=s.settings;csv+=[
     q(s.name),q(s.filename),s.timestamp,s.auto,s.ambiguous,s.manual,s.removed,s.rejected,s.total,
     s.calibration||'',st.thresholdMethod,st.thresholdValue,st.adaptiveWindowSize,st.adaptiveOffset,
     st.blurRadius,st.bgSubtraction,st.invert,st.minSize,st.maxSize,st.minCircularity,st.minSolidity,
-    st.maxEccentricity,st.borderReject,st.watershed,st.wsH,st.wsPeakDist,st.edgeMarginPct,
+    st.maxEccentricity,st.borderReject,st.watershed,st.wsH,st.wsPeakDist,st.clusterSplitSensitivity,st.edgeMarginPct,
     st.roiUsed,st.roiCx,st.roiCy,st.roiR,st.imageWidth,st.imageHeight,q(s.qcFlags)
   ].join(',')+'\n'}
   dl(csv,'colony_summary_'+ds()+'.csv','text/csv');toast('Summary CSV exported');
@@ -1775,6 +2271,7 @@ $('presetFileIn').addEventListener('change',e=>{
       if(p.borderReject!=null)$('borderRej').checked=p.borderReject;
       if(p.adaptiveWindowSize){$('adaptWin').value=p.adaptiveWindowSize;$('adaptWinV').textContent=p.adaptiveWindowSize}
       if(p.adaptiveOffset){$('adaptOff').value=p.adaptiveOffset;$('adaptOffV').textContent=p.adaptiveOffset}
+      if(p.clusterSplitSensitivity!=null){$('splitSens').value=p.clusterSplitSensitivity;$('splitSensV').textContent=p.clusterSplitSensitivity}
       if(p.edgeMarginPct){$('edgeMargin').value=p.edgeMarginPct;$('edgeMarginV').textContent=p.edgeMarginPct}
       $('threshMethod').dispatchEvent(new Event('change'));
       toast('Preset loaded');
@@ -1853,7 +2350,7 @@ function renderObjectList(){
   $('objListPanel').style.display='block';
   $('objListBadge').textContent=allObjects.length;
   const groups={accepted:[],ambiguous:[],rejected:[]};
-  for(const o of allObjects){(groups[o.status]||groups.rejected).push(o)}
+  for(const o of allObjects){(groups[effectiveStatus(o)]||groups.rejected).push(o)}
   let html='';
   const colors={accepted:'var(--green)',ambiguous:'var(--amber)',rejected:'var(--gray-slate)'};
   const labels={accepted:'Accepted',ambiguous:'Ambiguous',rejected:'Rejected'};
@@ -2008,7 +2505,7 @@ function reapplyFilters(){
   const em2=parseInt($('edgeMargin').value)/100;
 
   // Save previous for delta
-  const prevAcc=allObjects.filter(o=>o.status==='accepted'||o.status==='ambiguous').map(o=>({id:o.id,x:o.x,y:o.y,area:o.area}));
+  const prevAcc=allObjects.filter(o=>isIncludedAuto(o)).map(o=>({id:o.id,x:o.x,y:o.y,area:o.area}));
 
   for(const obj of allObjects){
     obj.status='accepted';obj.reasons=[];
@@ -2031,7 +2528,7 @@ function reapplyFilters(){
   }
 
   // Delta highlights
-  const curAcc=allObjects.filter(o=>o.status==='accepted'||o.status==='ambiguous');
+  const curAcc=allObjects.filter(o=>isIncludedAuto(o));
   deltaNewIds=new Set();deltaLostIds=new Set();
   const matchDist=Math.max(15,imgW/50);
   const matchedPrev=new Set();
@@ -2055,6 +2552,7 @@ _setupLiveSliders();
 //  BATCH / 6-WELL PLATE
 // =================================================================
 function switchTab(tab){
+  if(activeTab==='batch'&&tab!=='batch')savePlateWellReviewState();
   activeTab=tab;
   $('tabSingle').classList.toggle('active',tab==='single');
   $('tabBatch').classList.toggle('active',tab==='batch');
@@ -2062,6 +2560,10 @@ function switchTab(tab){
   $('panelBatch').classList.toggle('active',tab==='batch');
 }
 function setBatchMode(m){
+  savePlateWellReviewState();
+  plateReviewState=null;
+  wellAdjustState=null;
+  batchMainPreview=null;
   batchImageMode=m;
   $('bmIndiv').classList.toggle('active',m==='individual');
   $('bmPlate').classList.toggle('active',m==='plate');
@@ -2080,6 +2582,10 @@ function setBatchMode(m){
 })();
 
 function addBatchFiles(files){
+  wellAdjustState=null;
+  batchWellTemplate=null;
+  batchAutoWellTemplate=null;
+  batchMainPreview=null;
   for(const f of files){
     if(!f.type.startsWith('image/'))continue;
     const entry={file:f,img:null,w:0,h:0,result:null};
@@ -2092,7 +2598,7 @@ function addBatchFiles(files){
 }
 function removeBatchFile(i){
   if(batchFiles[i]&&batchFiles[i].img)URL.revokeObjectURL(batchFiles[i].img.src);
-  batchFiles.splice(i,1);batchWellTemplate=null;
+  batchFiles.splice(i,1);batchWellTemplate=null;batchAutoWellTemplate=null;wellAdjustState=null;batchMainPreview=null;
   updateBatchUI();
 }
 function updateBatchUI(){
@@ -2108,18 +2614,570 @@ function updateBatchUI(){
   const ready=batchFiles.length>0&&batchFiles.every(f=>f.img);
   $('batchRunBtn').disabled=!ready||batchProcessing;
   $('detectWellsBtn').disabled=!ready||batchProcessing;
+  $('adjustWellsBtn').disabled=!batchWellTemplate||batchProcessing||!batchFiles.length;
+  $('resetWellsBtn').disabled=!batchAutoWellTemplate||batchProcessing||!batchFiles.length;
+  $('adjustWellsBtn').textContent=wellAdjustState?'Finish Well Adjustment':'Adjust Wells';
+  $('platePreviewWrap').classList.toggle('well-adjust-on',!!wellAdjustState);
   const hasResults=batchFiles.some(f=>f.result);
   $('batchExpSumBtn').disabled=!hasResults;
   $('batchExpDetBtn').disabled=!hasResults;
+  updateDetectButtonState();
   if(hasResults)renderBatchResults();
 }
 
+function platePreviewCoords(e){
+  const pc=$('platePreviewCanvas');
+  const r=pc.getBoundingClientRect();
+  return {x:(e.clientX-r.left)*pc.width/r.width,y:(e.clientY-r.top)*pc.height/r.height};
+}
+function locateWellHandle(x,y){
+  if(!batchWellTemplate||!batchWellTemplate.length)return null;
+  let best=null,bestD=Infinity;
+  for(let i=0;i<batchWellTemplate.length;i++){
+    const w=batchWellTemplate[i];
+    const dist=Math.hypot(x-w.cx,y-w.cy);
+    const edge=Math.abs(dist-w.r);
+    const mode=edge<16?'resize':(dist<=w.r?'move':null);
+    const score=mode==='resize'?edge:dist;
+    if(mode&&score<bestD){best={index:i,mode};bestD=score;}
+  }
+  return best;
+}
+function loadBatchPreviewIntoMain(fileEntry,wells=null,results=null,fileIndex=0){
+  if(!fileEntry||!fileEntry.img)return;
+  batchMainPreview={fileIndex,wells:cloneWells(wells||[]),results};
+  origImg=fileEntry.img;
+  origFn=fileEntry.file.name+' — plate preview';
+  imgW=fileEntry.w;imgH=fileEntry.h;
+  C.width=imgW;C.height=imgH;X.drawImage(origImg,0,0);
+  origPx=X.getImageData(0,0,imgW,imgH).data.slice();
+  grayD=null;blurD=null;bgSubD=null;binMask=null;
+  allObjects=[];manualCols=[];removedAuto=[];forcedAccepted=[];
+  roi=null;inspectedId=null;
+  document.getElementById('canvasContainer').style.display='block';
+  document.getElementById('headerFile').textContent=origFn;
+  $('stL').textContent='Previewing '+fileEntry.file.name+' in 6-well plate mode';
+  hideInspector();
+  updateDetectButtonState();
+  render();
+}
+function shouldShowPlatePreviewPanel(fileIndex=0){
+  if(wellAdjustState&&wellAdjustState.fileIndex===fileIndex)return true;
+  if(plateReviewState&&plateReviewState.fileIndex===fileIndex)return true;
+  return false;
+}
+function toggleWellAdjustment(){
+  if(!batchWellTemplate||!batchFiles[0]){toast('Detect wells first');return;}
+  if(wellAdjustState){
+    wellAdjustState=null;
+    updateBatchUI();
+    loadBatchPreviewIntoMain(batchFiles[0],batchWellTemplate,batchFiles[0].result?batchFiles[0].result.wells:null,0);
+    showWellPreview(batchFiles[0].img,batchFiles[0].w,batchFiles[0].h,batchWellTemplate,batchFiles[0].result?batchFiles[0].result.wells:null,0);
+    toast('Well adjustment saved');
+    return;
+  }
+  wellAdjustState={fileIndex:0,selectedWell:0,dragMode:null,startX:0,startY:0,startCx:0,startCy:0,startR:0};
+  updateBatchUI();
+  loadBatchPreviewIntoMain(batchFiles[0],batchWellTemplate,batchFiles[0].result?batchFiles[0].result.wells:null,0);
+  showWellPreview(batchFiles[0].img,batchFiles[0].w,batchFiles[0].h,batchWellTemplate,batchFiles[0].result?batchFiles[0].result.wells:null,0);
+  toast('Drag to adjust. Arrow keys nudge the selected well. Use +/- to resize.');
+}
+function resetAdjustedWells(){
+  if(!batchAutoWellTemplate||!batchFiles[0]){toast('No auto-detected wells to restore');return;}
+  batchWellTemplate=cloneWells(batchAutoWellTemplate);
+  if(batchFiles[0].result&&batchFiles[0].result.wells){
+    for(let i=0;i<Math.min(batchWellTemplate.length,batchFiles[0].result.wells.length);i++){
+      batchFiles[0].result.wells[i].cx=batchWellTemplate[i].cx;
+      batchFiles[0].result.wells[i].cy=batchWellTemplate[i].cy;
+      batchFiles[0].result.wells[i].r=batchWellTemplate[i].r;
+    }
+  }
+  if(wellAdjustState)wellAdjustState.selectedWell=0;
+  updateBatchUI();
+  loadBatchPreviewIntoMain(batchFiles[0],batchWellTemplate,batchFiles[0].result?batchFiles[0].result.wells:null,0);
+  showWellPreview(batchFiles[0].img,batchFiles[0].w,batchFiles[0].h,batchWellTemplate,batchFiles[0].result?batchFiles[0].result.wells:null,0);
+  toast('Restored auto-detected wells');
+}
+function applySelectedWellChange(dx=0,dy=0,dr=0){
+  if(!wellAdjustState||!batchWellTemplate||!batchFiles[0])return false;
+  const w=batchWellTemplate[wellAdjustState.selectedWell];
+  if(!w)return false;
+  if(dx||dy){
+    w.cx=Math.max(w.r,Math.min(batchFiles[0].w-w.r,Math.round(w.cx+dx)));
+    w.cy=Math.max(w.r,Math.min(batchFiles[0].h-w.r,Math.round(w.cy+dy)));
+  }
+  if(dr){
+    w.r=Math.max(40,Math.min(Math.min(batchFiles[0].w,batchFiles[0].h)/2,Math.round(w.r+dr)));
+    w.cx=Math.max(w.r,Math.min(batchFiles[0].w-w.r,w.cx));
+    w.cy=Math.max(w.r,Math.min(batchFiles[0].h-w.r,w.cy));
+  }
+  if(batchFiles[0].result&&batchFiles[0].result.wells&&batchFiles[0].result.wells[wellAdjustState.selectedWell]){
+    const rw=batchFiles[0].result.wells[wellAdjustState.selectedWell];
+    rw.cx=w.cx;rw.cy=w.cy;rw.r=w.r;
+  }
+  renderWellGrid(batchWellTemplate,batchFiles[0].result?batchFiles[0].result.wells:null,0);
+  loadBatchPreviewIntoMain(batchFiles[0],batchWellTemplate,batchFiles[0].result?batchFiles[0].result.wells:null,0);
+  showWellPreview(batchFiles[0].img,batchFiles[0].w,batchFiles[0].h,batchWellTemplate,batchFiles[0].result?batchFiles[0].result.wells:null,0);
+  return true;
+}
+
+const platePreviewCanvas=$('platePreviewCanvas');
+platePreviewCanvas.addEventListener('mousedown',e=>{
+  if(!wellAdjustState||!batchWellTemplate)return;
+  const p=platePreviewCoords(e);
+  const hit=locateWellHandle(p.x,p.y);
+  if(!hit)return;
+  const w=batchWellTemplate[hit.index];
+  wellAdjustState.selectedWell=hit.index;
+  wellAdjustState.dragMode=hit.mode;
+  wellAdjustState.startX=p.x;wellAdjustState.startY=p.y;
+  wellAdjustState.startCx=w.cx;wellAdjustState.startCy=w.cy;wellAdjustState.startR=w.r;
+  showWellPreview(batchFiles[0].img,batchFiles[0].w,batchFiles[0].h,batchWellTemplate,batchFiles[0].result?batchFiles[0].result.wells:null,0);
+});
+window.addEventListener('mouseup',()=>{
+  if(wellAdjustState)wellAdjustState.dragMode=null;
+});
+platePreviewCanvas.addEventListener('mouseleave',()=>{
+  if(wellAdjustState&&!wellAdjustState.dragMode)platePreviewCanvas.style.cursor='default';
+});
+platePreviewCanvas.addEventListener('mousemove',e=>{
+  if(!wellAdjustState||!batchWellTemplate)return;
+  const p=platePreviewCoords(e);
+  if(wellAdjustState.dragMode){
+    const w=batchWellTemplate[wellAdjustState.selectedWell];
+    if(wellAdjustState.dragMode==='move'){
+      w.cx=Math.max(w.r,Math.min(batchFiles[0].w-w.r,Math.round(wellAdjustState.startCx+(p.x-wellAdjustState.startX))));
+      w.cy=Math.max(w.r,Math.min(batchFiles[0].h-w.r,Math.round(wellAdjustState.startCy+(p.y-wellAdjustState.startY))));
+    }else{
+      const nextR=Math.round(Math.max(40,Math.min(Math.min(batchFiles[0].w,batchFiles[0].h)/2,Math.hypot(p.x-w.cx,p.y-w.cy))));
+      w.r=nextR;
+      w.cx=Math.max(w.r,Math.min(batchFiles[0].w-w.r,w.cx));
+      w.cy=Math.max(w.r,Math.min(batchFiles[0].h-w.r,w.cy));
+    }
+    if(batchFiles[0].result&&batchFiles[0].result.wells&&batchFiles[0].result.wells[wellAdjustState.selectedWell]){
+      const rw=batchFiles[0].result.wells[wellAdjustState.selectedWell];
+      rw.cx=w.cx;rw.cy=w.cy;rw.r=w.r;
+    }
+    showWellPreview(batchFiles[0].img,batchFiles[0].w,batchFiles[0].h,batchWellTemplate,batchFiles[0].result?batchFiles[0].result.wells:null,0);
+    return;
+  }
+  const hit=locateWellHandle(p.x,p.y);
+  if(hit){
+    wellAdjustState.selectedWell=hit.index;
+    platePreviewCanvas.style.cursor=hit.mode==='resize'?'nwse-resize':'move';
+    showWellPreview(batchFiles[0].img,batchFiles[0].w,batchFiles[0].h,batchWellTemplate,batchFiles[0].result?batchFiles[0].result.wells:null,0);
+  }else{
+    platePreviewCanvas.style.cursor='default';
+  }
+});
+
+function getPlateWellCropRect(fileEntry,well){
+  const margin=Math.round(well.r*0.05);
+  const x0=Math.max(0,well.cx-well.r-margin),y0=Math.max(0,well.cy-well.r-margin);
+  const x1=Math.min(fileEntry.w,well.cx+well.r+margin),y1=Math.min(fileEntry.h,well.cy+well.r+margin);
+  return {x0,y0,x1,y1,cw:x1-x0,ch:y1-y0};
+}
+function buildPlateWellCanvas(fileEntry,rect){
+  const c=document.createElement('canvas');c.width=rect.cw;c.height=rect.ch;
+  const ctx=c.getContext('2d',{willReadFrequently:true});
+  ctx.drawImage(fileEntry.img,rect.x0,rect.y0,rect.cw,rect.ch,0,0,rect.cw,rect.ch);
+  return c;
+}
+function openPlateWellReview(fileIndex,wellIndex){
+  const fileEntry=batchFiles[fileIndex];
+  if(!fileEntry||!fileEntry.result||!fileEntry.result.wells||!fileEntry.result.wells[wellIndex])return;
+  savePlateWellReviewState();
+  wellAdjustState=null;
+  batchMainPreview=null;
+  updateBatchUI();
+  const well=fileEntry.result.wells[wellIndex];
+  const rect=getPlateWellCropRect(fileEntry,well);
+  const cropCanvas=buildPlateWellCanvas(fileEntry,rect);
+  plateReviewState={fileIndex,wellIndex,rect,wellLabel:well.label,fileName:fileEntry.file.name};
+  origImg=cropCanvas;
+  origFn=fileEntry.file.name+' — '+well.label;
+  imgW=rect.cw;imgH=rect.ch;
+  C.width=imgW;C.height=imgH;X.drawImage(cropCanvas,0,0);
+  origPx=X.getImageData(0,0,imgW,imgH).data.slice();
+  grayD=null;blurD=null;bgSubD=null;binMask=null;
+  prevAcceptedCount=well.totalAccepted||0;
+  inspectedId=null;
+
+  const review=well.review||null;
+  if(review){
+    allObjects=review.allObjects.map(o=>({...o}));
+    manualCols=review.manualCols.map(o=>({...o}));
+    removedAuto=review.removedAuto.slice();
+    forcedAccepted=(review.forcedAccepted||[]).slice();
+    roi=review.roi?{...review.roi}:{cx:well.cx-rect.x0,cy:well.cy-rect.y0,r:well.r};
+  }else{
+    allObjects=well.allObjects.map(o=>({...o,x:o.x-rect.x0,y:o.y-rect.y0}));
+    manualCols=(well.manualCols||[]).map(o=>({...o,x:o.x-rect.x0,y:o.y-rect.y0}));
+    removedAuto=(well.removedAuto||[]).slice();
+    forcedAccepted=(well.forcedAccepted||[]).slice();
+    roi={cx:well.cx-rect.x0,cy:well.cy-rect.y0,r:well.r};
+  }
+  nextId=Math.max(nextId,1+Math.max(-1,...allObjects.map(o=>o.id),...manualCols.map(o=>o.id||-1)));
+  undoStack=[];redoStack=[];
+  document.getElementById('canvasContainer').style.display='block';
+  document.getElementById('toolbar').style.display='flex';
+  document.getElementById('legend').style.display='flex';
+  updateDetectButtonState();
+  document.getElementById('roiBtn').disabled=false;
+  document.getElementById('clrROI').disabled=false;
+  document.getElementById('clrAllBtn').disabled=false;
+  document.getElementById('headerFile').textContent=origFn;
+  $('stL').textContent='Reviewing '+fileEntry.file.name+' — '+well.label;
+  $('compareBar').classList.add('active');
+  setMode('inspect');
+  render();
+  updateCounts();
+  updateQCFlags();
+  renderObjectList();
+  hideInspector();
+  renderWellGrid(batchWellTemplate,fileEntry.result.wells,fileIndex);
+  showWellPreview(fileEntry.img,fileEntry.w,fileEntry.h,batchWellTemplate,fileEntry.result.wells,fileIndex);
+  toast('Reviewing '+well.label+' — single-image tools are active for this well');
+}
+function savePlateWellReviewState(){
+  if(!plateReviewState)return;
+  const fileEntry=batchFiles[plateReviewState.fileIndex];
+  if(!fileEntry||!fileEntry.result||!fileEntry.result.wells)return;
+  const well=fileEntry.result.wells[plateReviewState.wellIndex];
+  if(!well)return;
+  const {x0,y0}=plateReviewState.rect;
+  const acceptedOnly=allObjects.filter(o=>effectiveStatus(o)==='accepted').length;
+  const ambiguousOnly=allObjects.filter(o=>effectiveStatus(o)==='ambiguous').length;
+  const rejectedOnly=allObjects.filter(o=>effectiveStatus(o)==='rejected').length;
+  well.review={
+    allObjects:allObjects.map(o=>({...o})),
+    manualCols:manualCols.map(o=>({...o})),
+    removedAuto:removedAuto.slice(),
+    forcedAccepted:forcedAccepted.slice(),
+    roi:roi?{...roi}:null
+  };
+  well.allObjects=allObjects.map(o=>({...o,x:o.x+x0,y:o.y+y0}));
+  well.manualCols=manualCols.map(o=>({...o,x:o.x+x0,y:o.y+y0}));
+  well.removedAuto=removedAuto.slice();
+  well.forcedAccepted=forcedAccepted.slice();
+  well.accepted=acceptedOnly+manualCols.length;
+  well.ambiguous=ambiguousOnly;
+  well.rejected=rejectedOnly;
+  well.totalAccepted=well.accepted+well.ambiguous;
+  fileEntry.result.totalAccepted=fileEntry.result.wells.reduce((s,w2)=>s+(w2.totalAccepted||0),0);
+  fileEntry.result.totalRejected=fileEntry.result.wells.reduce((s,w2)=>s+(w2.rejected||0),0);
+  if(batchWellTemplate&&plateReviewState.fileIndex===0){
+    renderWellGrid(batchWellTemplate,fileEntry.result.wells,plateReviewState.fileIndex);
+    showWellPreview(fileEntry.img,fileEntry.w,fileEntry.h,batchWellTemplate,fileEntry.result.wells,plateReviewState.fileIndex);
+  }
+  renderBatchResults();
+}
+
 // --- 6-Well Plate Detection ---
+function cvIsReady(){
+  return !!(typeof cv!=='undefined'&&cv&&typeof cv.Mat==='function');
+}
+function detectWellsOpenCV(img,w,h,plateBounds){
+  if(!cvIsReady())return null;
+  const bounds=plateBounds||detectPlateBounds(img,w,h);
+  window.__lastCvCandidates=[];
+  window.__lastCvMerged=[];
+  window.__lastCvMatched=null;
+  const field=detectWellFieldBounds(img,w,h,bounds);
+  const fw=Math.max(1,field.x1-field.x0);
+  const fh=Math.max(1,field.y1-field.y0);
+  const cropX0=Math.max(0,Math.round(field.x0-fw*0.12));
+  const cropX1=Math.min(w,Math.round(field.x1+fw*0.12));
+  const cropY0=Math.max(0,Math.round(field.y0-fh*0.18));
+  const cropY1=Math.min(h,Math.round(field.y1+fh*0.28));
+  const cropW=Math.max(1,cropX1-cropX0);
+  const cropH=Math.max(1,cropY1-cropY0);
+  const pitchGuess=Math.min(fw/2.8,fh/1.45);
+  const radiusGuess=Math.max(40,pitchGuess*0.46);
+  const minRadius=Math.max(20,Math.round(radiusGuess*0.72));
+  const maxRadius=Math.max(minRadius+10,Math.round(radiusGuess*1.22));
+  const minDist=Math.max(80,Math.round(Math.min(fw,fh)*0.33));
+
+  const c=document.createElement('canvas');c.width=w;c.height=h;
+  const ctx=c.getContext('2d',{willReadFrequently:true});
+  ctx.drawImage(img,0,0);
+  const src=cv.matFromImageData(ctx.getImageData(0,0,w,h));
+  const gray=new cv.Mat();
+  let roi=null,blur=null,circles=null;
+  try{
+    cv.cvtColor(src,gray,cv.COLOR_RGBA2GRAY,0);
+    roi=gray.roi(new cv.Rect(cropX0,cropY0,cropW,cropH));
+    const candidates=[];
+    const runs=[{blur:7,param2:20},{blur:5,param2:20}];
+    for(const run of runs){
+      blur=new cv.Mat();
+      circles=new cv.Mat();
+      cv.medianBlur(roi,blur,run.blur);
+      cv.HoughCircles(blur,circles,cv.HOUGH_GRADIENT,1.2,minDist,100,run.param2,minRadius,maxRadius);
+      const count=circles.cols||0;
+      for(let i=0;i<count;i++){
+        const j=i*3;
+        const cx=circles.data32F[j]+cropX0;
+        const cy=circles.data32F[j+1]+cropY0;
+        const r=circles.data32F[j+2];
+        if(cx<field.x0-fw*0.04||cx>field.x1+fw*0.04)continue;
+        if(cy<field.y0+fh*0.10||cy>field.y1+fh*0.22)continue;
+        candidates.push({cx,cy,r});
+      }
+      circles.delete();circles=null;
+      blur.delete();blur=null;
+    }
+    const merged=mergeCircleCandidates(candidates);
+    window.__lastCvCandidates=candidates.map(c=>({...c}));
+    window.__lastCvMerged=merged.map(c=>({...c}));
+    const coarse=fitWellGridGeometry(img,w,h,bounds);
+    const matched=matchCandidatesToCoarseWells(merged,coarse,bounds,w,h);
+    window.__lastCvMatched=matched?matched.map(wl=>({...wl})):null;
+    if(matched&&matched.length===6)return matched;
+    return selectWellGridFromCircleCandidates(merged,bounds,w,h);
+  }catch(err){
+    console.warn('OpenCV well detection failed:',err);
+    return null;
+  }finally{
+    if(circles)circles.delete();
+    if(blur)blur.delete();
+    if(roi)roi.delete();
+    gray.delete();
+    src.delete();
+  }
+}
+function mergeCircleCandidates(candidates){
+  if(!candidates||!candidates.length)return [];
+  const sorted=candidates.slice().sort((a,b)=>b.r-a.r);
+  const merged=[];
+  for(const cand of sorted){
+    let match=null;
+    for(const m of merged){
+      const d=Math.hypot(cand.cx-m.cx,cand.cy-m.cy);
+      const rMean=(cand.r+m.r)/2;
+      if(d<=rMean*0.35&&Math.abs(cand.r-m.r)<=rMean*0.18){match=m;break;}
+    }
+    if(match){
+      match.cx=(match.cx*match.n+cand.cx)/(match.n+1);
+      match.cy=(match.cy*match.n+cand.cy)/(match.n+1);
+      match.r=(match.r*match.n+cand.r)/(match.n+1);
+      match.n++;
+    }else{
+      merged.push({cx:cand.cx,cy:cand.cy,r:cand.r,n:1});
+    }
+  }
+  const radii=merged.map(m=>m.r).sort((a,b)=>a-b);
+  const medR=radii[Math.floor(radii.length/2)]||0;
+  return merged
+    .filter(m=>!medR||Math.abs(m.r-medR)<=medR*0.24)
+    .sort((a,b)=>a.cy-b.cy||a.cx-b.cx)
+    .sort((a,b)=>b.n-a.n||a.cy-b.cy||a.cx-b.cx)
+    .slice(0,18);
+}
+function matchCandidatesToCoarseWells(candidates,coarseWells,plateBounds,imgW,imgH){
+  if(!coarseWells||coarseWells.length!==6||!candidates||candidates.length<6)return null;
+  const pairs=[];
+  for(let wi=0;wi<coarseWells.length;wi++){
+    const well=coarseWells[wi];
+    for(let ci=0;ci<candidates.length;ci++){
+      const cand=candidates[ci];
+      const dist=Math.hypot(cand.cx-well.cx,cand.cy-well.cy);
+      const maxDist=Math.max(well.r*1.8,cand.r*1.45);
+      if(dist>maxDist)continue;
+      const score=dist+Math.abs(cand.r-well.r)*0.45-cand.n*12;
+      pairs.push({wi,ci,score});
+    }
+  }
+  pairs.sort((a,b)=>a.score-b.score);
+  const usedWells=new Set(),usedCands=new Set();
+  const matched=new Array(coarseWells.length).fill(null);
+  for(const p of pairs){
+    if(usedWells.has(p.wi)||usedCands.has(p.ci))continue;
+    usedWells.add(p.wi);usedCands.add(p.ci);
+    matched[p.wi]=candidates[p.ci];
+  }
+  if(matched.some(v=>!v))return null;
+  const isLandscape=coarseWells.some(w=>w.label==='A3');
+  const nRows=isLandscape?2:3;
+  const nCols=isLandscape?3:2;
+  const cols=new Array(nCols).fill(0).map(()=>[]);
+  const rows=new Array(nRows).fill(0).map(()=>[]);
+  for(let i=0;i<coarseWells.length;i++){
+    const ri=Math.floor(i/nCols),ci=i%nCols;
+    cols[ci].push(matched[i].cx);
+    rows[ri].push(matched[i].cy);
+  }
+  const colCenters=cols.map(vs=>vs.reduce((s,v)=>s+v,0)/vs.length);
+  const rowCenters=rows.map(vs=>vs.reduce((s,v)=>s+v,0)/vs.length);
+  const medR=median(matched.map(c=>c.r));
+  const pitchX=nCols>1?median(colCenters.slice(1).map((v,i)=>v-colCenters[i])):medR*2.2;
+  const pitchY=nRows>1?median(rowCenters.slice(1).map((v,i)=>v-rowCenters[i])):medR*2.2;
+  const finalR=Math.round(Math.min(medR*0.96,Math.min(pitchX,pitchY)*0.45));
+  const wells=coarseWells.map((well,i)=>{
+    const ri=Math.floor(i/nCols),ci=i%nCols;
+    return {label:well.label,cx:Math.round(colCenters[ci]),cy:Math.round(rowCenters[ri]),r:finalR};
+  });
+  return wellsWithinImage(wells,imgW,imgH)?wells:null;
+}
+function selectWellGridFromCircleCandidates(candidates,plateBounds,imgW,imgH){
+  if(!candidates||candidates.length<6)return null;
+  let best=null;
+  const subset=new Array(6);
+  function search(start,depth){
+    if(depth===6){
+      const meta=scoreCircleSubset(subset);
+      if(meta&&(!best||meta.score<best.score))best={score:meta.score,subset:subset.map(c=>({...c})),meta};
+      return;
+    }
+    for(let i=start;i<=candidates.length-(6-depth);i++){
+      subset[depth]=candidates[i];
+      search(i+1,depth+1);
+    }
+  }
+  search(0,0);
+  if(!best)return null;
+  const wells=buildWellsFromCircleSubset(best.subset,best.meta);
+  return wellsWithinImage(wells,imgW,imgH)?wells:null;
+}
+function wellsWithinImage(wells,imgW,imgH){
+  return !!(wells&&wells.length===6&&wells.every(wl=>
+    wl&&Number.isFinite(wl.cx)&&Number.isFinite(wl.cy)&&Number.isFinite(wl.r)&&
+    wl.r>20&&wl.cx-wl.r>=0&&wl.cy-wl.r>=0&&wl.cx+wl.r<=imgW&&wl.cy+wl.r<=imgH
+  ));
+}
+function scoreCircleSubset(subset){
+  const geom=describeCircleSubset(subset);
+  if(!geom)return null;
+  const majorCl=fitClusterCenters(geom.majorVals,3);
+  const minorCl=fitClusterCenters(geom.minorVals,2);
+  if(!majorCl||!minorCl||majorCl.sep<80||minorCl.sep<80)return null;
+  const occupancy=computeGridOccupancy(geom,majorCl.centers,minorCl.centers);
+  if(occupancy.collisions||occupancy.missing)return null;
+  const rs=subset.map(c=>c.r).sort((a,b)=>a-b);
+  const medR=median(rs);
+  const radiusVar=Math.sqrt(rs.reduce((s,r)=>s+(r-medR)*(r-medR),0)/rs.length);
+  const pitchErr=Math.abs(majorCl.sep-minorCl.sep);
+  const shapePenalty=Math.abs(majorCl.sep*0.45-medR);
+  const score=majorCl.sse+minorCl.sse+occupancy.err*3+pitchErr*2+radiusVar*3+shapePenalty*0.5;
+  return {score,geom,majorCl,minorCl};
+}
+function describeCircleSubset(subset){
+  if(!subset||subset.length!==6)return null;
+  let cx=0,cy=0;
+  for(const c of subset){cx+=c.cx;cy+=c.cy;}
+  cx/=subset.length;cy/=subset.length;
+  let sxx=0,syy=0,sxy=0;
+  for(const c of subset){
+    const dx=c.cx-cx,dy=c.cy-cy;
+    sxx+=dx*dx;syy+=dy*dy;sxy+=dx*dy;
+  }
+  const angle=0.5*Math.atan2(2*sxy,sxx-syy);
+  const axis1={x:Math.cos(angle),y:Math.sin(angle)};
+  const axis2={x:-axis1.y,y:axis1.x};
+  const majorVals=[],minorVals=[];
+  for(const c of subset){
+    const dx=c.cx-cx,dy=c.cy-cy;
+    majorVals.push(dx*axis1.x+dy*axis1.y);
+    minorVals.push(dx*axis2.x+dy*axis2.y);
+  }
+  return {cx,cy,axis1,axis2,majorVals,minorVals};
+}
+function fitClusterCenters(vals,k){
+  const items=vals.map((v,i)=>({v,i})).sort((a,b)=>a.v-b.v);
+  if(items.length!==6)return null;
+  const groups=k===3
+    ?[items.slice(0,2),items.slice(2,4),items.slice(4,6)]
+    :k===2
+      ?[items.slice(0,3),items.slice(3,6)]
+      :null;
+  if(!groups)return null;
+  const centers=groups.map(g=>g.reduce((s,it)=>s+it.v,0)/g.length);
+  const sse=groups.reduce((acc,g,gi)=>acc+g.reduce((s,it)=>s+(it.v-centers[gi])*(it.v-centers[gi]),0),0);
+  const sep=k===3?Math.min(Math.abs(centers[1]-centers[0]),Math.abs(centers[2]-centers[1])):Math.abs(centers[1]-centers[0]);
+  return {centers,sse,sep};
+}
+function computeGridOccupancy(geom,majorCenters,minorCenters){
+  const hits=new Set();
+  let collisions=0,err=0;
+  for(let i=0;i<geom.majorVals.length;i++){
+    const col=nearestCenterIndex(geom.majorVals[i],majorCenters);
+    const row=nearestCenterIndex(geom.minorVals[i],minorCenters);
+    const key=row+'-'+col;
+    if(hits.has(key))collisions++;
+    hits.add(key);
+    err+=Math.abs(geom.majorVals[i]-majorCenters[col])+Math.abs(geom.minorVals[i]-minorCenters[row]);
+  }
+  return {collisions,missing:6-hits.size,err:err/geom.majorVals.length};
+}
+function nearestCenterIndex(v,centers){
+  let bi=0,bd=Infinity;
+  for(let i=0;i<centers.length;i++){
+    const d=Math.abs(v-centers[i]);
+    if(d<bd){bd=d;bi=i;}
+  }
+  return bi;
+}
+function buildWellsFromCircleSubset(subset,meta){
+  const {geom,majorCl,minorCl}=meta;
+  const majorCenters=majorCl.centers.slice();
+  const minorCenters=minorCl.centers.slice();
+  const majorMid=(majorCenters[0]+majorCenters[majorCenters.length-1])/2;
+  const minorMid=(minorCenters[0]+minorCenters[minorCenters.length-1])/2;
+  const isLandscape=Math.abs(geom.axis1.x)>=Math.abs(geom.axis1.y);
+  const cols=(isLandscape?majorCenters:minorCenters).slice().sort((a,b)=>{
+    const pa=isLandscape?projectSubsetPoint(geom,a,minorMid):projectSubsetPoint(geom,majorMid,a);
+    const pb=isLandscape?projectSubsetPoint(geom,b,minorMid):projectSubsetPoint(geom,majorMid,b);
+    return pa.x-pb.x;
+  });
+  const rows=(isLandscape?minorCenters:majorCenters).slice().sort((a,b)=>{
+    const pa=isLandscape?projectSubsetPoint(geom,majorMid,a):projectSubsetPoint(geom,a,minorMid);
+    const pb=isLandscape?projectSubsetPoint(geom,majorMid,b):projectSubsetPoint(geom,b,minorMid);
+    return pa.y-pb.y;
+  });
+  const medR=median(subset.map(c=>c.r));
+  const pitch=Math.min(majorCl.sep,minorCl.sep);
+  const finalR=Math.round(Math.min(medR*0.96,pitch*0.45));
+  const labels=isLandscape?['A1','A2','A3','B1','B2','B3']:['A1','A2','B1','B2','C1','C2'];
+  const nRows=isLandscape?2:3;
+  const nCols=isLandscape?3:2;
+  const wells=[];
+  for(let ri=0;ri<nRows;ri++)for(let ci=0;ci<nCols;ci++){
+    const pt=isLandscape
+      ?projectSubsetPoint(geom,cols[ci],rows[ri])
+      :projectSubsetPoint(geom,rows[ri],cols[ci]);
+    wells.push({cx:Math.round(pt.x),cy:Math.round(pt.y),r:finalR,label:labels[ri*nCols+ci]});
+  }
+  return wells;
+}
+function projectSubsetPoint(geom,majorVal,minorVal){
+  return {
+    x:geom.cx+geom.axis1.x*majorVal+geom.axis2.x*minorVal,
+    y:geom.cy+geom.axis1.y*majorVal+geom.axis2.y*minorVal
+  };
+}
+function median(vals){
+  if(!vals.length)return 0;
+  const arr=vals.slice().sort((a,b)=>a-b);
+  const mid=Math.floor(arr.length/2);
+  return arr.length%2?arr[mid]:(arr[mid-1]+arr[mid])/2;
+}
 // Detect 6 circular wells using gradient-based circle Hough transform.
 // Uses aggressive blur to suppress colony texture and focus on well rim edges.
 function detectWells(img,w,h){
   const rawPlateBounds=detectPlateBounds(img,w,h);
-  const plateBounds=detectWellFieldBounds(img,w,h,rawPlateBounds);
+  const cvFit=detectWellsOpenCV(img,w,h,rawPlateBounds);
+  if(cvFit&&cvFit.length===6)return cvFit;
+  const fieldBounds=detectWellFieldBounds(img,w,h,rawPlateBounds);
+
+  // Try geometry-based detection FIRST using raw plate bounds (not field-selected).
+  // fitWellGridGeometry uses SLAS physical plate dimensions, tries both orientations,
+  // and picks the best-scoring one. It has its own sanity checks, so we trust it
+  // directly — do NOT gate on isConsistentWellLayout, which uses getWellLayout(bounds)
+  // to determine orientation from bounds that may include the lid (wrong orientation).
+  const geoFit=fitWellGridGeometry(img,w,h,rawPlateBounds);
+  if(geoFit&&geoFit.length===6)return geoFit;
+
+  const plateBounds=fieldBounds;
   const plateW=Math.max(1,plateBounds.x1-plateBounds.x0);
   const plateH=Math.max(1,plateBounds.y1-plateBounds.y0);
   const layout=getWellLayout(plateBounds,w,h);
@@ -2128,11 +3186,11 @@ function detectWells(img,w,h){
   const expectedR=Math.max(20,expectedPitch*0.42);
 
   const rimFit=fitWellGridToRims(img,w,h,plateBounds);
-  if(rimFit&&isConsistentWellLayout(rimFit,plateBounds,w,h))return rimFit;
-
-  // Try geometry-based detection after rim fitting. Geometry assumes weaker rotation.
-  const geoFit=fitWellGridGeometry(img,w,h,plateBounds);
-  if(geoFit&&isConsistentWellLayout(geoFit,plateBounds,w,h))return geoFit;
+  if(rimFit&&isConsistentWellLayout(rimFit,plateBounds,w,h)){
+    const refined=refineWellGridWithRims(img,w,h,rimFit,plateBounds);
+    if(refined&&isConsistentWellLayout(refined,plateBounds,w,h))return refined;
+    return rimFit;
+  }
 
   const oc=document.createElement('canvas');oc.width=w;oc.height=h;
   const ox=oc.getContext('2d');ox.drawImage(img,0,0);
@@ -2303,28 +3361,16 @@ function detectWells(img,w,h){
 }
 function fitWellGridGeometry(img,w,h,plateBounds){
   // Geometry-based well detection using ANSI/SLAS standard 6-well plate dimensions.
-  // Uses reliable x-bounds + variance-anchored rows to avoid dependence on unreliable y-bounds.
+  // Tries BOTH orientations (portrait & landscape) and picks the one whose well
+  // positions best match actual image content. This handles the common case where
+  // an open lid extends the detected y-bounds, making a landscape plate look portrait.
   const bounds=plateBounds||detectPlateBounds(img,w,h);
-  const {isPortrait,nRows,nCols,labels}=getWellLayout(bounds,w,h);
-  // SLAS standard 6-well plate physical dimensions (mm)
   const PLATE_LONG=127.76,PLATE_SHORT=85.48,PITCH=39.12,WELL_D=35.0;
-  // A1 offset from corner: X=24.76mm, Y=23.16mm (landscape orientation)
-  // Along long axis (3 positions): 23.16, 62.28, 101.40 mm
-  // Along short axis (2 positions): 24.76, 63.88 mm
   const LONG_FRACS=[23.16/PLATE_LONG,62.28/PLATE_LONG,101.40/PLATE_LONG];
   const SHORT_FRACS=[24.76/PLATE_SHORT,63.88/PLATE_SHORT];
-  // X-bounds are reliable (column variance is consistent)
   const px0=bounds.x0,px1=bounds.x1,pw=Math.max(1,px1-px0);
-  const plateWidthMM=isPortrait?PLATE_SHORT:PLATE_LONG;
-  const pxPerMM=pw/plateWidthMM;
-  const pitchPx=PITCH*pxPerMM;
-  const wellR=Math.round((WELL_D/2)*pxPerMM);
 
-  // Column centers directly from x-bounds + plate-spec fractions
-  const colFracs=isPortrait?SHORT_FRACS:LONG_FRACS;
-  const colCenters=colFracs.map(f=>Math.round(px0+pw*f));
-
-  // For rows, use variance profile to find best placement
+  // Build downscaled grayscale + variance profile (shared by both orientations)
   const maxDim=700;
   const scale=Math.min(1,maxDim/Math.max(w,h));
   const sw=Math.round(w*scale),sh=Math.round(h*scale);
@@ -2332,60 +3378,101 @@ function fitWellGridGeometry(img,w,h,plateBounds){
   const ctx=c.getContext('2d',{willReadFrequently:true});
   ctx.drawImage(img,0,0,sw,sh);
   const d=ctx.getImageData(0,0,sw,sh).data;
+  const gray=new Float32Array(sw*sh);
+  for(let i=0;i<sw*sh;i++)gray[i]=0.299*d[i*4]+0.587*d[i*4+1]+0.114*d[i*4+2];
 
-  // Row-wise variance within plate x-bounds
   const sxL=Math.max(0,Math.round(px0*scale));
   const sxR=Math.min(sw,Math.round(px1*scale));
   const bandW=Math.max(1,sxR-sxL);
   const rowVar=new Float32Array(sh);
+  const rowMean=new Float32Array(sh);
   for(let y=0;y<sh;y++){
     let sum=0,sum2=0;
-    for(let x=sxL;x<sxR;x++){
-      const idx=(y*sw+x)*4;
-      const v=0.299*d[idx]+0.587*d[idx+1]+0.114*d[idx+2];
-      sum+=v;sum2+=v*v;
-    }
+    for(let x=sxL;x<sxR;x++){const v=gray[y*sw+x];sum+=v;sum2+=v*v;}
     const mean=sum/bandW;
     rowVar[y]=sum2/bandW-mean*mean;
+    rowMean[y]=mean;
   }
-
-  // Heavy smoothing to suppress handwriting/noise artifacts (≈400px window at full res)
   const smoothR=Math.max(10,Math.round(200*scale));
   const smoothVar=boxSmooth1D(rowVar,smoothR);
-  const pitchScaled=pitchPx*scale;
+  const smoothMean=boxSmooth1D(rowMean,smoothR);
 
-  // Search for best row placement by scoring variance at all row positions simultaneously
-  let bestScore=-1,bestAnchor=Math.round(sh/2);
-  if(isPortrait){
-    // 3 rows: A at anchor-pitch, B at anchor, C at anchor+pitch. Search for B-row.
-    const lo=Math.round(pitchScaled*1.2),hi=Math.round(sh-pitchScaled*1.2);
-    for(let by=lo;by<hi;by++){
-      const ay=by-Math.round(pitchScaled),cy=by+Math.round(pitchScaled);
-      if(ay<0||cy>=sh)continue;
-      const score=smoothVar[ay]+smoothVar[by]+smoothVar[cy];
-      if(score>bestScore){bestScore=score;bestAnchor=by;}
+  // Score a candidate well grid using expected rim strength, with only a light
+  // contribution from center darkness. This avoids bias toward dense top halves.
+  function scoreCandidate(colCenters,rowCenters,wellR){
+    const visibleR=Math.max(8,wellR*scale*0.90);
+    let rimScore=0,rn=0;
+    let wellDark=0,wn=0,centerVar=0,vn=0;
+    for(const cy of rowCenters){
+      for(const cx of colCenters){
+        const sx=cx*scale,sy=cy*scale;
+        if(sx<0||sx>=sw||sy<0||sy>=sh)continue;
+        rimScore+=scoreGeometryCircle(gray,sw,sh,sx,sy,visibleR);
+        rn++;
+        // Sample well center (5x5 patch for robustness)
+        for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){
+          const yy=Math.round(sy+dy),xx=Math.round(sx+dx);
+          if(yy>=0&&yy<sh&&xx>=0&&xx<sw){wellDark+=255-gray[yy*sw+xx];wn++;}
+        }
+        const syi=Math.round(sy);
+        if(syi>=0&&syi<sh){centerVar+=smoothVar[syi];vn++;}
+      }
     }
-  }else{
-    // 2 rows: search for midpoint between them
-    const lo=Math.round(pitchScaled*0.8),hi=Math.round(sh-pitchScaled*0.8);
-    for(let mid=lo;mid<hi;mid++){
-      const r1=mid-Math.round(pitchScaled/2),r2=mid+Math.round(pitchScaled/2);
-      if(r1<0||r2>=sh)continue;
-      const score=smoothVar[r1]+smoothVar[r2];
-      if(score>bestScore){bestScore=score;bestAnchor=mid;}
-    }
+    const avgRim=rn>0?rimScore/rn:0;
+    const avgWellDark=wn>0?wellDark/wn:0;
+    const avgVar=vn>0?centerVar/vn:0;
+    return avgRim*12+avgWellDark*2+avgVar*0.5;
   }
 
-  // Convert row centers to original image coordinates
-  let rowCenters;
-  if(isPortrait){
-    const bRow=bestAnchor/scale;
-    rowCenters=[bRow-pitchPx,bRow,bRow+pitchPx];
-  }else{
-    const mid=bestAnchor/scale;
-    rowCenters=[mid-pitchPx/2,mid+pitchPx/2];
+  // Try both orientations
+  const candidates=[];
+  for(const tryPortrait of [true,false]){
+    const plateWidthMM=tryPortrait?PLATE_SHORT:PLATE_LONG;
+    const pxMM=pw/plateWidthMM;
+    const pitch=PITCH*pxMM;
+    const wR=Math.round((WELL_D/2)*pxMM);
+    const colFracs=tryPortrait?SHORT_FRACS:LONG_FRACS;
+    const cols=colFracs.map(f=>Math.round(px0+pw*f));
+    const nRows=tryPortrait?3:2;
+
+    // Find plate body y-extent by sliding a window of the expected body height
+    // and scoring the expected well positions inside that body.
+    const bodyH=pw*(tryPortrait?PLATE_LONG/PLATE_SHORT:PLATE_SHORT/PLATE_LONG);
+    const bodyHS=Math.min(sh-1,Math.round(bodyH*scale));
+    if(bodyHS<10||bodyHS>=sh)continue;
+    const rowFracs=tryPortrait?LONG_FRACS:SHORT_FRACS;
+    let bestWS=-Infinity,bestWY=0;
+    const yStep=Math.max(2,Math.round(bodyHS*0.02));
+    for(let y0=0;y0<=sh-bodyHS;y0+=yStep){
+      const rows=rowFracs.map(f=>Math.round((y0+bodyHS*f)/scale));
+      const score=scoreCandidate(cols,rows,wR);
+      if(score>bestWS){bestWS=score;bestWY=y0;}
+    }
+    const bodyTop=bestWY/scale;
+    let rows=rowFracs.map(f=>Math.round(bodyTop+bodyH*f));
+    // Sanity: all wells within image
+    const margin=Math.round(wR*0.5);
+    let valid=true;
+    for(const cy of rows){if(cy<margin||cy>h-margin){valid=false;break;}}
+    for(const cx of cols){if(cx<margin||cx>w-margin){valid=false;break;}}
+    if(!valid)continue;
+    const score=scoreCandidate(cols,rows,wR);
+    const labels=tryPortrait
+      ?['A1','A2','B1','B2','C1','C2']
+      :['A1','A2','A3','B1','B2','B3'];
+    candidates.push({tryPortrait,cols,rows,wR,pitch,score,labels,nRows,nCols:cols.length});
   }
-  rowCenters=rowCenters.map(y=>Math.round(y));
+  if(!candidates.length)return null;
+  candidates.sort((a,b)=>b.score-a.score);
+  const best=candidates[0];
+  const isPortrait=best.tryPortrait;
+  const colCenters=best.cols;
+  const rowCenters=best.rows;
+  const wellR=best.wR;
+  const pitchPx=best.pitch;
+  const labels=best.labels;
+  const nRows=best.nRows;
+  const nCols=best.nCols;
 
   // Sanity: all wells must be within image bounds
   const margin=Math.round(wellR*0.5);
@@ -2396,45 +3483,9 @@ function fitWellGridGeometry(img,w,h,plateBounds){
     if(cx<margin||cx>w-margin)return null;
   }
 
-  // Refine well radius from image gradient (physical spec radius is too large —
-  // visible agar area is smaller than the full physical well due to well walls/agar level/lid).
-  // Build grayscale array for fast pixel access.
-  const rc=document.createElement('canvas');rc.width=w;rc.height=h;
-  const rctx=rc.getContext('2d',{willReadFrequently:true});
-  rctx.drawImage(img,0,0);
-  const rid=rctx.getImageData(0,0,w,h).data;
-  const rgray=new Float32Array(w*h);
-  for(let i=0;i<w*h;i++)rgray[i]=0.299*rid[i*4]+0.587*rid[i*4+1]+0.114*rid[i*4+2];
-  const rMinR=Math.round(wellR*0.45),rMaxR=Math.round(wellR*0.85),rStep=Math.max(2,Math.round((rMaxR-rMinR)/30));
-  const allMeas=[];
-  for(let ri=0;ri<nRows;ri++)for(let ci=0;ci<nCols;ci++){
-    const wcx=colCenters[ci],wcy=rowCenters[ri];
-    let bestRi=Math.round(wellR*0.6),bestGrad=0;
-    for(let tr=rMinR;tr<=rMaxR;tr+=rStep){
-      let gSum=0,gN=0;
-      for(let a=0;a<24;a++){
-        const t=a*Math.PI/12;
-        const x1=Math.round(wcx+(tr-4)*Math.cos(t)),y1=Math.round(wcy+(tr-4)*Math.sin(t));
-        const x2=Math.round(wcx+(tr+4)*Math.cos(t)),y2=Math.round(wcy+(tr+4)*Math.sin(t));
-        if(x1<0||x2>=w||y1<0||y2>=h)continue;
-        gSum+=Math.abs(rgray[y2*w+x2]-rgray[y1*w+x1]);
-        gN++;
-      }
-      const grad=gN>0?gSum/gN:0;
-      if(grad>bestGrad){bestGrad=grad;bestRi=tr;}
-    }
-    allMeas.push({r:bestRi,g:bestGrad});
-  }
-  // Use radius from wells with strongest gradient (most reliable rim visibility).
-  // Filter to wells above 1/3 of max gradient, then take median of those radii.
-  const maxGrad=Math.max(...allMeas.map(m=>m.g));
-  const strong=allMeas.filter(m=>m.g>maxGrad/3).map(m=>m.r).sort((a,b)=>a-b);
-  let finalR;
-  if(strong.length>=1){
-    finalR=strong[Math.floor(strong.length/2)];
-  }else{
-    finalR=Math.round(pitchPx*0.30);
-  }
+  // Use a slightly inset ROI relative to the physical well diameter so the preview
+  // and counting ROI track the visible agar area better and avoid rim artifacts.
+  const finalR=Math.round(wellR*0.90);
 
   // Build well array
   const wells=[];
@@ -2520,6 +3571,87 @@ function fitWellGridToRims(img,w,h,plateBounds){
     });
   }
   return isConsistentWellLayout(wells,bounds,w,h)?wells:null;
+}
+function refineWellGridWithRims(img,w,h,wells,plateBounds){
+  if(!wells||wells.length!==6)return null;
+  const bounds=plateBounds||{
+    x0:Math.min(...wells.map(w2=>w2.cx-w2.r)),
+    y0:Math.min(...wells.map(w2=>w2.cy-w2.r)),
+    x1:Math.max(...wells.map(w2=>w2.cx+w2.r)),
+    y1:Math.max(...wells.map(w2=>w2.cy+w2.r))
+  };
+  const maxDim=1100;
+  const scale=Math.min(1,maxDim/Math.max(w,h));
+  const sw=Math.round(w*scale),sh=Math.round(h*scale);
+  const c=document.createElement('canvas');c.width=sw;c.height=sh;
+  const ctx=c.getContext('2d',{willReadFrequently:true});
+  ctx.drawImage(img,0,0,sw,sh);
+  const d=ctx.getImageData(0,0,sw,sh).data;
+  const gray=new Float32Array(sw*sh);
+  for(let i=0;i<sw*sh;i++)gray[i]=0.299*d[i*4]+0.587*d[i*4+1]+0.114*d[i*4+2];
+  const blur=gaussBlur1D(gray,sw,sh,2.5);
+  const grad=new Float32Array(sw*sh);
+  for(let y=1;y<sh-1;y++)for(let x=1;x<sw-1;x++){
+    const gx=-blur[(y-1)*sw+x-1]+blur[(y-1)*sw+x+1]-2*blur[y*sw+x-1]+2*blur[y*sw+x+1]-blur[(y+1)*sw+x-1]+blur[(y+1)*sw+x+1];
+    const gy=-blur[(y-1)*sw+x-1]-2*blur[(y-1)*sw+x]+blur[(y+1)*sw+x-1]+2*blur[(y+1)*sw+x]+blur[(y+1)*sw+x+1]-blur[(y-1)*sw+x+1];
+    grad[y*sw+x]=Math.sqrt(gx*gx+gy*gy);
+  }
+
+  const ordered=wells.slice();
+  const radiusFits=[];
+  for(const wl of ordered){
+    const expCx=wl.cx*scale,expCy=wl.cy*scale,expR=Math.max(12,wl.r*scale);
+    const fit=searchWellRing(
+      grad,blur,sw,sh,expCx,expCy,expR,
+      Math.max(2,Math.round(expR*0.05)),
+      Math.max(2,Math.round(expR*0.05)),
+      Math.max(10,Math.round(expR*0.32))
+    );
+    radiusFits.push(fit&&Number.isFinite(fit.score)?fit.r:expR);
+  }
+  const medR=radiusFits.slice().sort((a,b)=>a-b)[Math.floor(radiusFits.length/2)]||Math.max(12,ordered[0].r*scale);
+  const finalR=Math.max(12,Math.round(medR*0.92));
+  const refined=[];
+  for(let i=0;i<ordered.length;i++){
+    const wl=ordered[i];
+    const expCx=wl.cx*scale,expCy=wl.cy*scale;
+    const baseScore=scoreWellRing(grad,blur,sw,sh,expCx,expCy,medR);
+    const fit=searchWellRing(
+      grad,blur,sw,sh,expCx,expCy,medR,
+      Math.max(2,Math.round(medR*0.05)),
+      Math.max(2,Math.round(medR*0.05)),
+      Math.max(2,Math.round(medR*0.08))
+    );
+    const shiftLimit=Math.max(3,Math.round(medR*0.06));
+    const fitOk=fit&&Number.isFinite(fit.score)&&
+      Math.abs(fit.cx-expCx)<=shiftLimit&&
+      Math.abs(fit.cy-expCy)<=shiftLimit&&
+      fit.score>=baseScore*0.98;
+    const useFit=fitOk?fit:{cx:expCx,cy:expCy,r:medR};
+    refined.push({
+      label:wl.label,
+      cx:Math.round(useFit.cx/scale),
+      cy:Math.round(useFit.cy/scale),
+      r:Math.round(finalR/scale)
+    });
+  }
+  return refined;
+}
+function scoreGeometryCircle(gray,w,h,cx,cy,r){
+  let edge=0,dark=0,count=0;
+  for(let i=0;i<36;i++){
+    const ang=2*Math.PI*i/36;
+    const ct=Math.cos(ang),st=Math.sin(ang);
+    const ix=Math.round(cx+ct*(r-4)),iy=Math.round(cy+st*(r-4));
+    const ox=Math.round(cx+ct*(r+4)),oy=Math.round(cy+st*(r+4));
+    const mx=Math.round(cx+ct*r*0.55),my=Math.round(cy+st*r*0.55);
+    if(ix<1||ix>=w-1||iy<1||iy>=h-1||ox<1||ox>=w-1||oy<1||oy>=h-1||mx<0||mx>=w||my<0||my>=h)continue;
+    edge+=Math.abs(gray[oy*w+ox]-gray[iy*w+ix]);
+    dark+=255-gray[my*w+mx];
+    count++;
+  }
+  if(!count)return -Infinity;
+  return edge/count + dark/count*0.15;
 }
 function searchWellRing(grad,gray,w,h,expCx,expCy,expR,maxDx,maxDy,maxDr){
   let best=null;
@@ -2681,7 +3813,9 @@ function scoreWellFieldRect(gray,w,h,x0,y0,x1,y1){
   const edge=grad/count;
   const layout=getWellLayout({x0,y0,x1,y1},w,h);
   const fieldScore=scoreWellTemplate(gray,w,h,x0,y0,x1,y1,layout);
-  return variance+edge*12+fieldScore;
+  const bandScore=scoreWellBandStructure(gray,w,h,x0,y0,x1,y1,layout);
+  const rimScore=scoreWellRimTemplate(gray,w,h,x0,y0,x1,y1,layout);
+  return variance+edge*12+fieldScore+bandScore+rimScore;
 }
 function scoreWellTemplate(gray,w,h,x0,y0,x1,y1,layout){
   const rw=Math.max(1,x1-x0),rh=Math.max(1,y1-y0);
@@ -2710,6 +3844,95 @@ function scoreWellTemplate(gray,w,h,x0,y0,x1,y1,layout){
   if(!wellN||!bgN)return 0;
   const contrast=(bgSum/bgN)-(wellSum/wellN);
   return Math.max(0,contrast)*20;
+}
+function scoreWellBandStructure(gray,w,h,x0,y0,x1,y1,layout){
+  const rw=Math.max(1,x1-x0),rh=Math.max(1,y1-y0);
+  const {nRows,nCols}=layout;
+  const rowDark=new Float32Array(rh);
+  const colDark=new Float32Array(rw);
+
+  const mx0=Math.max(0,Math.round(x0+rw*0.12));
+  const mx1=Math.min(w,Math.round(x1-rw*0.12));
+  const my0=Math.max(0,Math.round(y0+rh*0.12));
+  const my1=Math.min(h,Math.round(y1-rh*0.12));
+
+  for(let y=0;y<rh;y++){
+    const yy=y0+y;
+    let sum=0,cnt=0;
+    for(let x=mx0;x<mx1;x+=2){sum+=255-gray[yy*w+x];cnt++}
+    rowDark[y]=cnt?sum/cnt:0;
+  }
+  for(let x=0;x<rw;x++){
+    const xx=x0+x;
+    let sum=0,cnt=0;
+    for(let y=my0;y<my1;y+=2){sum+=255-gray[y*w+xx];cnt++}
+    colDark[x]=cnt?sum/cnt:0;
+  }
+
+  const rowSmooth=boxSmooth1D(rowDark,Math.max(4,Math.round(rh*0.06)));
+  const colSmooth=boxSmooth1D(colDark,Math.max(4,Math.round(rw*0.05)));
+  const rowPeaks=findProfilePeaks(rowSmooth,nRows,Math.max(8,Math.round(rh/(nRows+1)*0.45)),Math.round(rh*0.08),rh-Math.round(rh*0.08));
+  const colPeaks=findProfilePeaks(colSmooth,nCols,Math.max(8,Math.round(rw/(nCols+1)*0.35)),Math.round(rw*0.08),rw-Math.round(rw*0.08));
+  if(rowPeaks.length!==nRows||colPeaks.length!==nCols)return -120;
+
+  let score=0;
+  for(const p of rowPeaks)score+=rowSmooth[p];
+  for(const p of colPeaks)score+=colSmooth[p];
+
+  const rowExpected=rh/(nRows+1),colExpected=rw/(nCols+1);
+  for(let i=1;i<rowPeaks.length;i++)score-=Math.abs((rowPeaks[i]-rowPeaks[i-1])-rowExpected)*1.2;
+  for(let i=1;i<colPeaks.length;i++)score-=Math.abs((colPeaks[i]-colPeaks[i-1])-colExpected)*1.0;
+
+  const rowSpan=rowPeaks[rowPeaks.length-1]-rowPeaks[0];
+  const colSpan=colPeaks[colPeaks.length-1]-colPeaks[0];
+  const idealRowSpan=rowExpected*(nRows-1);
+  const idealColSpan=colExpected*(nCols-1);
+  score-=Math.abs(rowSpan-idealRowSpan)*1.5;
+  score-=Math.abs(colSpan-idealColSpan)*1.2;
+
+  return score;
+}
+function findProfilePeaks(arr,n,minDist,start,end){
+  const candidates=[];
+  for(let i=Math.max(1,start);i<Math.min(arr.length-1,end);i++){
+    if(arr[i]>arr[i-1]&&arr[i]>=arr[i+1])candidates.push({pos:i,val:arr[i]});
+  }
+  candidates.sort((a,b)=>b.val-a.val);
+  const peaks=[];
+  for(const c of candidates){
+    if(peaks.every(p=>Math.abs(p-c.pos)>=minDist)){
+      peaks.push(c.pos);
+      if(peaks.length>=n)break;
+    }
+  }
+  return peaks.sort((a,b)=>a-b);
+}
+function scoreWellRimTemplate(gray,w,h,x0,y0,x1,y1,layout){
+  const rw=Math.max(1,x1-x0),rh=Math.max(1,y1-y0);
+  const {nRows,nCols}=layout;
+  const r=Math.max(8,Math.min(rw/(nCols+0.7),rh/(nRows+0.7))*0.38);
+  let total=0,valid=0;
+  for(let ri=0;ri<nRows;ri++){
+    for(let ci=0;ci<nCols;ci++){
+      const cx=x0+rw*(ci+1)/(nCols+1);
+      const cy=y0+rh*(ri+1)/(nRows+1);
+      let wellScore=0,samples=0;
+      for(let t=0;t<36;t++){
+        const ang=2*Math.PI*t/36;
+        const ct=Math.cos(ang),st=Math.sin(ang);
+        const ix=Math.round(cx+ct*(r-4)),iy=Math.round(cy+st*(r-4));
+        const ox=Math.round(cx+ct*(r+4)),oy=Math.round(cy+st*(r+4));
+        if(ix<1||ix>=w-1||iy<1||iy>=h-1||ox<1||ox>=w-1||oy<1||oy>=h-1)continue;
+        wellScore+=Math.abs(gray[oy*w+ox]-gray[iy*w+ix]);
+        samples++;
+      }
+      if(samples){
+        total+=wellScore/samples;
+        valid++;
+      }
+    }
+  }
+  return valid?total/valid*18:0;
 }
 function fallbackWellGrid(w,h,img,plateBounds){
   // Content-aware fallback: detect well centers directly from image content
@@ -3007,46 +4230,101 @@ function gaussBlur1D(src,w,h,sigma){
   return out;
 }
 
-function runWellDetection(){
+async function runWellDetection(){
   if(!batchFiles.length||!batchFiles[0].img)return;
+  if(!cvIsReady()&&!window.__colonyCvFailed){
+    toast('OpenCV is still loading — try Detect Wells again in a moment');
+    return;
+  }
   const f=batchFiles[0];
+  $('detectWellsBtn').disabled=true;
+  $('adjustWellsBtn').disabled=true;
+  setBatchProgress('Detecting wells in the first image…',null,true);
+  await nextPaint();
   const wells=detectWells(f.img,f.w,f.h);
   batchWellTemplate=wells;
-  // Show well grid preview
-  renderWellGrid(wells,null);
-  // Show wells on canvas
-  showWellPreview(f.img,f.w,f.h,wells);
+  batchAutoWellTemplate=cloneWells(wells);
+  wellAdjustState=null;
+  renderWellGrid(wells,null,0);
+  loadBatchPreviewIntoMain(f,wells,null,0);
+  showWellPreview(f.img,f.w,f.h,wells,null,0);
+  clearBatchProgress('Well detection complete');
+  updateBatchUI();
   toast('Detected '+wells.length+' wells');
 }
-function renderWellGrid(wells,results){
+function renderWellGrid(wells,results,fileIndex=0){
   const el=$('wellGrid');el.innerHTML='';el.style.display='grid';
   for(let i=0;i<6;i++){
     const w2=wells[i];
-    const d=document.createElement('div');d.className='well-card'+(w2?'':' wc-empty');
+    const isActive=(plateReviewState&&plateReviewState.fileIndex===fileIndex&&plateReviewState.wellIndex===i)||
+      (wellAdjustState&&wellAdjustState.fileIndex===fileIndex&&wellAdjustState.selectedWell===i);
+    const d=document.createElement('div');d.className='well-card'+(w2?'':' wc-empty')+(isActive?' active':'');
     const res=results?results[i]:null;
     d.innerHTML='<div class="wc-label">'+(w2?w2.label:'?')+'</div>'+
       '<div class="wc-count">'+(res!=null?res.totalAccepted:'-')+'</div>'+
-      '<div class="wc-sub">'+(res?'acc:'+res.accepted+' rej:'+res.rejected:'')+'</div>';
-    el.appendChild(d);
+      '<div class="wc-sub">'+(res?('acc:'+res.accepted+' amb:'+res.ambiguous+' rej:'+res.rejected):(wellAdjustState?'Drag circles below, then process':'Detect wells, adjust if needed, then process'))+'</div>';
+        if(w2&&res){
+          d.onclick=()=>openPlateWellReview(fileIndex,i);
+          d.title='Open '+w2.label+' in review canvas';
+        }else if(w2&&wellAdjustState&&fileIndex===wellAdjustState.fileIndex){
+          d.onclick=()=>{wellAdjustState.selectedWell=i;renderWellGrid(wells,results,fileIndex);loadBatchPreviewIntoMain(batchFiles[fileIndex],wells,results,fileIndex);showWellPreview(batchFiles[fileIndex].img,batchFiles[fileIndex].w,batchFiles[fileIndex].h,wells,results,fileIndex);};
+          d.title='Select '+w2.label+' for adjustment';
+        }
+        el.appendChild(d);
   }
 }
-function showWellPreview(img,w,h,wells){
+function showWellPreview(img,w,h,wells,results=null,fileIndex=0){
   // Show detected wells on dedicated plate preview canvas (inside batch panel)
   const pc=$('platePreviewCanvas');
   pc.width=w;pc.height=h;
   const px=pc.getContext('2d');
   px.drawImage(img,0,0);
   px.lineWidth=Math.max(2,w/300);px.font=Math.max(14,w/40)+'px sans-serif';px.textAlign='center';px.textBaseline='middle';
-  for(const wl of wells){
+  for(let i=0;i<wells.length;i++){
+    const wl=wells[i];
     px.strokeStyle='#38bdf8';px.setLineDash([8,5]);
     px.beginPath();px.arc(wl.cx,wl.cy,wl.r,0,Math.PI*2);px.stroke();
     px.setLineDash([]);
     px.fillStyle='rgba(56,189,248,.25)';px.beginPath();px.arc(wl.cx,wl.cy,wl.r,0,Math.PI*2);px.fill();
     px.fillStyle='#fff';px.strokeStyle='#000';px.lineWidth=3;
     px.strokeText(wl.label,wl.cx,wl.cy);px.fillText(wl.label,wl.cx,wl.cy);
+    if(wellAdjustState&&wellAdjustState.selectedWell===i){
+      px.strokeStyle='#2563eb';px.lineWidth=Math.max(3,w/220);
+      px.beginPath();px.arc(wl.cx,wl.cy,wl.r+6,0,Math.PI*2);px.stroke();
+      px.fillStyle='#2563eb';px.beginPath();px.arc(wl.cx,wl.cy,7,0,Math.PI*2);px.fill();
+      px.fillStyle='#fff';px.beginPath();px.arc(wl.cx+wl.r,wl.cy,6,0,Math.PI*2);px.fill();
+      px.strokeStyle='#2563eb';px.lineWidth=2;px.beginPath();px.arc(wl.cx+wl.r,wl.cy,6,0,Math.PI*2);px.stroke();
+    }
   }
-  $('platePreviewWrap').style.display='block';
-  $('platePreviewLabel').textContent='Detected '+wells.length+' wells';
+  if(results&&plateReviewState&&plateReviewState.fileIndex===fileIndex){
+    const selected=results[plateReviewState.wellIndex];
+    if(selected){
+      px.strokeStyle='#22c55e';px.setLineDash([]);px.lineWidth=Math.max(3,w/220);
+      px.beginPath();px.arc(selected.cx,selected.cy,selected.r,0,Math.PI*2);px.stroke();
+      const objs=(selected.review?selected.review.allObjects:selected.allObjects||[]);
+      const removedIds=selected.review?selected.review.removedAuto:(selected.removedAuto||[]);
+      const forcedIds=selected.review?selected.review.forcedAccepted:(selected.forcedAccepted||[]);
+      for(const o of objs){
+        const ox=(selected.review?o.x+plateReviewState.rect.x0:o.x);
+        const oy=(selected.review?o.y+plateReviewState.rect.y0:o.y);
+        const r=Math.max(4,Math.sqrt(o.area/Math.PI));
+        const st=effectiveStatusWith(o,removedIds,forcedIds);
+        if(st==='accepted'){
+          px.strokeStyle='#22c55e';px.lineWidth=Math.max(1.5,w/500);px.beginPath();px.arc(ox,oy,r,0,Math.PI*2);px.stroke();
+        }else if(st==='ambiguous'){
+          px.strokeStyle='#f59e0b';px.setLineDash([3,3]);px.lineWidth=Math.max(1.5,w/500);px.beginPath();px.arc(ox,oy,r,0,Math.PI*2);px.stroke();px.setLineDash([]);
+        }else{
+          px.strokeStyle='#94a3b8';px.setLineDash([5,4]);px.lineWidth=Math.max(1.2,w/600);px.beginPath();px.arc(ox,oy,r,0,Math.PI*2);px.stroke();px.setLineDash([]);
+        }
+      }
+    }
+  }
+  $('platePreviewWrap').style.display=shouldShowPlatePreviewPanel(fileIndex)?'block':'none';
+  $('platePreviewLabel').textContent=wellAdjustState
+    ?'Adjust wells: drag to move/resize, use arrow keys to nudge, +/- to resize, or Reset To Auto-Detected Wells to undo changes'
+    :results&&plateReviewState&&plateReviewState.fileIndex===fileIndex
+    ?('Detected '+wells.length+' wells — reviewing '+results[plateReviewState.wellIndex].label)
+    :('Detected '+wells.length+' wells');
 }
 
 // --- Batch Processing Engine ---
@@ -3068,54 +4346,61 @@ function getDetectionSettings(){
     borderRej:$('borderRej').checked,
     hFrac:parseInt($('wsH').value)/100,
     peakDistFrac:parseInt($('wsPD').value)/100,
+    splitSens:parseInt($('splitSens').value)/100,
     edgeMarginPct:parseInt($('edgeMargin').value)/100
   };
 }
 
-function startBatchProcessing(){
+async function startBatchProcessing(){
   if(batchProcessing||!batchFiles.length)return;
+  if(!cvIsReady()&&!window.__colonyCvFailed){
+    toast('OpenCV is still loading — wait a moment before batch processing');
+    return;
+  }
   if(batchImageMode==='plate'&&!batchWellTemplate){
     toast('Please detect wells first');return;
   }
   batchProcessing=true;
+  wellAdjustState=null;
   $('batchRunBtn').disabled=true;
-  $('batchProgress').classList.add('active');
+  $('detectWellsBtn').disabled=true;
+  $('adjustWellsBtn').disabled=true;
+  setBatchProgress('Preparing batch analysis…',0,false);
   // Clear previous results
   batchFiles.forEach(f=>f.result=null);
   const settings=getDetectionSettings();
-  processBatchStep(0,settings);
-}
-
-function processBatchStep(idx,settings){
-  if(idx>=batchFiles.length){
-    // Done
-    batchProcessing=false;
-    $('batchRunBtn').disabled=false;
-    $('bpBar').style.width='100%';
-    $('bpLabel').textContent='Done — '+batchFiles.length+' images processed';
-    updateBatchUI();
-    toast('Batch complete: '+batchFiles.length+' images processed');
-    return;
-  }
-  // Update progress
-  $('bpBar').style.width=Math.round(idx/batchFiles.length*100)+'%';
-  $('bpLabel').textContent='Processing '+(idx+1)+' of '+batchFiles.length+': '+batchFiles[idx].file.name;
-  // Defer to allow UI update
-  requestAnimationFrame(()=>requestAnimationFrame(()=>{
-    try{
+  try{
+    for(let idx=0;idx<batchFiles.length;idx++){
       const f=batchFiles[idx];
-      if(batchImageMode==='plate'&&batchWellTemplate){
-        // Re-detect wells per image to handle position shifts between plates
-        const perImageWells=detectWells(f.img,f.w,f.h);
-        f.result=processPlateImage(f,settings,perImageWells);
-      }else{
-        f.result=processSingleImage(f,settings);
+      setBatchProgress('Processing image '+(idx+1)+' of '+batchFiles.length+': '+f.file.name,idx/batchFiles.length,false);
+      await nextPaint();
+      try{
+        if(batchImageMode==='plate'&&batchWellTemplate){
+          const perImageWells=(idx===0?cloneWells(batchWellTemplate):detectWells(f.img,f.w,f.h));
+          f.result=await processPlateImageAsync(f,settings,perImageWells,prog=>{
+            const globalRatio=(idx+prog.done/prog.total)/batchFiles.length;
+            setBatchProgress('Processing '+prog.label+' in image '+(idx+1)+' of '+batchFiles.length,globalRatio,false);
+          });
+          if(idx===0){
+            renderWellGrid(perImageWells,f.result.wells,0);
+            loadBatchPreviewIntoMain(f,perImageWells,f.result.wells,0);
+            showWellPreview(f.img,f.w,f.h,perImageWells,f.result.wells,0);
+          }
+        }else{
+          f.result=processSingleImage(f,settings);
+        }
+      }catch(e){
+        batchFiles[idx].result={error:e.message,wells:[],totalAccepted:0};
       }
-    }catch(e){
-      batchFiles[idx].result={error:e.message,wells:[],totalAccepted:0};
+      updateBatchUI();
+      await nextPaint();
     }
-    processBatchStep(idx+1,settings);
-  }));
+    setBatchProgress('Done — '+batchFiles.length+' images processed',1,false);
+    toast('Batch complete: '+batchFiles.length+' images processed');
+  }finally{
+    batchProcessing=false;
+    updateBatchUI();
+  }
 }
 
 function processSingleImage(f,s){
@@ -3127,7 +4412,7 @@ function processSingleImage(f,s){
   return runPipelineOnData(pd,f.w,f.h,s,null);
 }
 
-function processPlateImage(f,s,wells){
+async function processPlateImageAsync(f,s,wells,onProgress){
   // For each well: crop to bounding box, run pipeline with circular ROI
   const oc=document.createElement('canvas');oc.width=f.w;oc.height=f.h;
   const ox=oc.getContext('2d',{willReadFrequently:true});
@@ -3135,7 +4420,9 @@ function processPlateImage(f,s,wells){
   const fullPd=ox.getImageData(0,0,f.w,f.h).data;
   const wellResults=[];
   let totalAcc=0,totalRej=0;
-  for(const wl of wells){
+  for(let wi=0;wi<wells.length;wi++){
+    const wl=wells[wi];
+    if(onProgress){onProgress({done:wi,label:wl.label,total:wells.length});await nextPaint();}
     // Extract well region
     const margin=Math.round(wl.r*0.05);
     const x0=Math.max(0,wl.cx-wl.r-margin),y0=Math.max(0,wl.cy-wl.r-margin);
@@ -3152,9 +4439,10 @@ function processPlateImage(f,s,wells){
     const res=runPipelineOnData(cropPd,cw,ch,s,roiLocal);
     // Offset coordinates back to full image
     res.allObjects.forEach(o=>{o.x+=x0;o.y+=y0});
-    wellResults.push({label:wl.label,cx:wl.cx,cy:wl.cy,r:wl.r,...res});
+    wellResults.push({label:wl.label,cx:wl.cx,cy:wl.cy,r:wl.r,manualCols:[],removedAuto:[],...res});
     totalAcc+=res.totalAccepted;totalRej+=res.rejected;
   }
+  if(onProgress)onProgress({done:wells.length,label:'finalizing',total:wells.length});
   return {wells:wellResults,totalAccepted:totalAcc,totalRejected:totalRej};
 }
 
@@ -3232,6 +4520,9 @@ function runPipelineOnData(pixelData,w,h,s,circularROI){
     }
   }
 
+  const roiMask=circularROI?buildCircularRoiMask(w,h,circularROI,s.edgeMarginPct):null;
+  enhanceMaskForFaintColonies(mask,processed,w,h,s.minSize,roiMask,s.invert);
+
   // Match the single-image path: remove tiny specks and fill small holes before labeling.
   {
     const {labels:tmpL,objects:tmpO}=labelAndFeatureBatch(mask,null,w,h);
@@ -3263,7 +4554,7 @@ function runPipelineOnData(pixelData,w,h,s,circularROI){
   for(let ci=0;ci<objects.length;ci++){
     const comp=objects[ci];
     if(s.doWS&&comp.pixels>s.minSize*2){
-      const subs=watershedSplitBatch(comp,mask,w,h,s.hFrac,s.peakDistFrac,s.minSize,labels,ci+1);
+      const subs=watershedSplitBatch(comp,mask,w,h,s.hFrac,s.peakDistFrac,s.minSize,labels,ci+1,gray,s.invert,s.splitSens);
       for(const sc of subs){
         const cx2=Math.round(sc.sumX/sc.pixels),cy2=Math.round(sc.sumY/sc.pixels);
         const perim=sc.perim||1;const area=sc.pixels;
@@ -3333,11 +4624,15 @@ function labelAndFeatureBatch(mask,grayData,w,h){
       let isBorder=false;let perimContrib=0;
       for(let d=0;d<8;d++){
         const nx=cx2+dx8b[d],ny=cy2+dy8b[d];
-        if(nx<0||nx>=w||ny<0||ny>=h){isBorder=true;perimContrib+=(d<4?1.0:0.707);continue}
+        if(nx<0||nx>=w||ny<0||ny>=h){isBorder=true;continue}
         const ni=ny*w+nx;
         if(mask[ni]&&!labels[ni]){labels[ni]=label;queue.push(ni)}
-        else if(!mask[ni]){isBorder=true;perimContrib+=(d<4?1.0:0.707)}
+        else if(!mask[ni]){isBorder=true}
       }
+      if(cx2===0||!mask[cy2*w+cx2-1])perimContrib+=1;
+      if(cx2===w-1||!mask[cy2*w+cx2+1])perimContrib+=1;
+      if(cy2===0||!mask[(cy2-1)*w+cx2])perimContrib+=1;
+      if(cy2===h-1||!mask[(cy2+1)*w+cx2])perimContrib+=1;
       comp.perim+=perimContrib;
       if(isBorder)comp.borderPx.push(ci);
       // Accumulate second moments inline
@@ -3356,7 +4651,7 @@ function labelAndFeatureBatch(mask,grayData,w,h){
 }
 
 // Batch-compatible watershed (standalone)
-function watershedSplitBatch(comp,mask,w,h,hFrac,peakDistFrac,minSz,labels,compLabel){
+function watershedSplitBatch(comp,mask,w,h,hFrac,peakDistFrac,minSz,labels,compLabel,grayData,invert,splitSens){
   const cx=Math.round(comp.sumX/comp.pixels),cy=Math.round(comp.sumY/comp.pixels);
   const estR=Math.ceil(Math.sqrt(comp.pixels/Math.PI))+10;
   const mX=Math.max(0,cx-estR*2),mY=Math.max(0,cy-estR*2);
@@ -3378,19 +4673,33 @@ function watershedSplitBatch(comp,mask,w,h,hFrac,peakDistFrac,minSz,labels,compL
   }
   let maxD=0;for(let i=0;i<dist.length;i++)if(dist[i]>maxD)maxD=dist[i];
   if(maxD<6)return [comp];
-  const hVal=maxD*hFrac;
-  const minPD=Math.sqrt(comp.pixels/Math.PI)*peakDistFrac;
-  const cands=[];
-  for(let y=1;y<bh-1;y++)for(let x=1;x<bw-1;x++){
-    const i=y*bw+x;if(dist[i]<hVal)continue;
-    let isMax=true;
-    for(let dy=-1;dy<=1&&isMax;dy++)for(let dx=-1;dx<=1&&isMax;dx++)if((dy||dx)&&dist[(y+dy)*bw+x+dx]>dist[i])isMax=false;
-    if(isMax)cands.push({gx:x+mX,gy:y+mY,lx:x,ly:y,d:dist[i]});
+  const responseStats=computeLocalColonyResponse(grayData,labels,compLabel,w,h,mX,mY,bw,bh,invert);
+  const splitCfg=getSplitSensitivityProfile(splitSens);
+  const wsTuned=tuneWatershedParams(comp.pixels,minSz,hFrac,peakDistFrac);
+  let seeds=collectDistanceSeeds(dist,bw,bh,mX,mY,maxD*wsTuned.hFrac,Math.sqrt(comp.pixels/Math.PI)*wsTuned.peakDistFrac);
+  const maxSeeds=Math.max(2,Math.min(8,Math.round(comp.pixels/Math.max(minSz*splitCfg.maxSeedsFactor,1))));
+  if(responseStats&&comp.pixels>minSz*splitCfg.intensityEligibilityFactor&&seeds.length<=splitCfg.lowSeedAllowance){
+    const intensitySeeds=collectIntensitySeeds(
+      responseStats,labels,compLabel,w,h,mX,mY,bw,bh,
+      Math.max(4,Math.sqrt(comp.pixels/Math.PI)*wsTuned.peakDistFrac*splitCfg.intensityPeakFactor),
+      maxSeeds,dist,maxD*splitCfg.intensityValleyFactor,splitCfg.intensityThresholdStd,splitCfg.intensityThresholdPeak
+    );
+    if(intensitySeeds.length>1){
+      seeds=mergeSeedSets(seeds,intensitySeeds,Math.max(4,Math.sqrt(comp.pixels/Math.PI)*wsTuned.peakDistFrac*splitCfg.seedMergeFactor),maxSeeds);
+    }
   }
-  cands.sort((a,b)=>b.d-a.d);
-  const seeds=[];
-  for(const c of cands){let ok=true;for(const se of seeds)if(Math.hypot(c.gx-se.gx,c.gy-se.gy)<minPD){ok=false;break}if(ok)seeds.push(c)}
+  if(seeds.length<=1&&comp.pixels>minSz*4){
+    seeds=collectDistanceSeeds(dist,bw,bh,mX,mY,maxD*Math.max(0.06,wsTuned.hFrac*0.75),Math.sqrt(comp.pixels/Math.PI)*Math.max(0.07,wsTuned.peakDistFrac*0.82));
+  }
   if(seeds.length<=1)return [comp];
+  const floodScore=new Float32Array(bw*bh);
+  const respNorm=responseStats&&responseStats.maxResp>0?responseStats.maxResp:0;
+  for(let i=0;i<floodScore.length;i++){
+    if(!lm[i]){floodScore[i]=0;continue}
+    const shapeScore=maxD>0?dist[i]/maxD:0;
+    const intensityScore=respNorm>0?responseStats.response[i]/respNorm:0;
+    floodScore[i]=shapeScore*0.74+intensityScore*0.26;
+  }
   // Priority-queue watershed
   const mm=new Int32Array(bw*bh);
   const hp2=[];
@@ -3398,14 +4707,15 @@ function watershedSplitBatch(comp,mask,w,h,hFrac,peakDistFrac,minSz,labels,compL
   function hp2Dn(i){const n=hp2.length;while(true){let s2=i;const l=2*i+1,r=2*i+2;if(l<n&&hp2[l][0]<hp2[s2][0])s2=l;if(r<n&&hp2[r][0]<hp2[s2][0])s2=r;if(s2===i)break;const t=hp2[s2];hp2[s2]=hp2[i];hp2[i]=t;i=s2}}
   function hp2Push(v){hp2.push(v);hp2Up(hp2.length-1)}
   function hp2Pop(){const top=hp2[0];const last=hp2.pop();if(hp2.length>0){hp2[0]=last;hp2Dn(0)}return top}
-  for(let si=0;si<seeds.length;si++){const s2=seeds[si],li=s2.ly*bw+s2.lx;mm[li]=si+1;hp2Push([-dist[li],li])}
+  for(let si=0;si<seeds.length;si++){const s2=seeds[si],li=s2.ly*bw+s2.lx;mm[li]=si+1;hp2Push([-(floodScore[li]||dist[li]),li])}
   while(hp2.length>0){
     const [,ci]=hp2Pop(),cx2=ci%bw,cy2=(ci-cx2)/bw,m=mm[ci];
-    if(cx2>0&&lm[ci-1]&&!mm[ci-1]){mm[ci-1]=m;hp2Push([-dist[ci-1],ci-1])}
-    if(cx2<bw-1&&lm[ci+1]&&!mm[ci+1]){mm[ci+1]=m;hp2Push([-dist[ci+1],ci+1])}
-    if(cy2>0&&lm[ci-bw]&&!mm[ci-bw]){mm[ci-bw]=m;hp2Push([-dist[ci-bw],ci-bw])}
-    if(cy2<bh-1&&lm[ci+bw]&&!mm[ci+bw]){mm[ci+bw]=m;hp2Push([-dist[ci+bw],ci+bw])}
+    if(cx2>0&&lm[ci-1]&&!mm[ci-1]){mm[ci-1]=m;hp2Push([-(floodScore[ci-1]||dist[ci-1]),ci-1])}
+    if(cx2<bw-1&&lm[ci+1]&&!mm[ci+1]){mm[ci+1]=m;hp2Push([-(floodScore[ci+1]||dist[ci+1]),ci+1])}
+    if(cy2>0&&lm[ci-bw]&&!mm[ci-bw]){mm[ci-bw]=m;hp2Push([-(floodScore[ci-bw]||dist[ci-bw]),ci-bw])}
+    if(cy2<bh-1&&lm[ci+bw]&&!mm[ci+bw]){mm[ci+bw]=m;hp2Push([-(floodScore[ci+bw]||dist[ci+bw]),ci+bw])}
   }
+  mergeTinyWatershedRegions(mm,bw,bh,Math.max(4,Math.floor(minSz*splitCfg.fragmentMergeFactor)));
   const dx8b=[-1,1,0,0,-1,-1,1,1],dy8b=[0,0,-1,1,-1,1,-1,1];
   const scs=[];
   for(let si=0;si<seeds.length;si++)scs.push({pixels:0,sumX:0,sumY:0,perim:0,borderPx:[],sumI:0,sumXX:0,sumYY:0,sumXY:0});
@@ -3417,9 +4727,13 @@ function watershedSplitBatch(comp,mask,w,h,hFrac,peakDistFrac,minSz,labels,compL
     let isBorder=false;let perimContrib=0;
     for(let d=0;d<8;d++){
       const nx=x+dx8b[d],ny=y+dy8b[d];
-      if(nx<0||nx>=bw||ny<0||ny>=bh){isBorder=true;perimContrib+=(d<4?1.0:0.707);continue}
-      if(mm[ny*bw+nx]!==m){isBorder=true;perimContrib+=(d<4?1.0:0.707)}
+      if(nx<0||nx>=bw||ny<0||ny>=bh){isBorder=true;continue}
+      if(mm[ny*bw+nx]!==m){isBorder=true}
     }
+    if(x===0||mm[y*bw+x-1]!==m)perimContrib+=1;
+    if(x===bw-1||mm[y*bw+x+1]!==m)perimContrib+=1;
+    if(y===0||mm[(y-1)*bw+x]!==m)perimContrib+=1;
+    if(y===bh-1||mm[(y+1)*bw+x]!==m)perimContrib+=1;
     sc.perim+=perimContrib;
     if(isBorder)sc.borderPx.push(gy*w+gx);
   }
@@ -3556,7 +4870,18 @@ function toast(m){const t=$('toast');t.textContent=m;t.classList.add('show');cle
 //  KEYBOARD SHORTCUTS
 // =================================================================
 document.addEventListener('keydown',e=>{
-  if(e.target.tagName==='INPUT'||e.target.tagName==='SELECT')return;
+  if(e.target.tagName==='INPUT'||e.target.tagName==='SELECT'||e.target.tagName==='TEXTAREA')return;
+  if(wellAdjustState&&batchWellTemplate){
+    const step=e.shiftKey?10:2;
+    switch(e.key){
+      case'ArrowLeft':e.preventDefault();if(applySelectedWellChange(-step,0,0))toast('Nudged '+batchWellTemplate[wellAdjustState.selectedWell].label+' left');return;
+      case'ArrowRight':e.preventDefault();if(applySelectedWellChange(step,0,0))toast('Nudged '+batchWellTemplate[wellAdjustState.selectedWell].label+' right');return;
+      case'ArrowUp':e.preventDefault();if(applySelectedWellChange(0,-step,0))toast('Nudged '+batchWellTemplate[wellAdjustState.selectedWell].label+' up');return;
+      case'ArrowDown':e.preventDefault();if(applySelectedWellChange(0,step,0))toast('Nudged '+batchWellTemplate[wellAdjustState.selectedWell].label+' down');return;
+      case'+':case'=':e.preventDefault();if(applySelectedWellChange(0,0,step))toast('Expanded '+batchWellTemplate[wellAdjustState.selectedWell].label);return;
+      case'-':case'_':e.preventDefault();if(applySelectedWellChange(0,0,-step))toast('Shrank '+batchWellTemplate[wellAdjustState.selectedWell].label);return;
+    }
+  }
   if(e.ctrlKey&&e.key==='z'){e.preventDefault();undo();return}
   if(e.ctrlKey&&e.key==='y'){e.preventDefault();redo();return}
   switch(e.key){
