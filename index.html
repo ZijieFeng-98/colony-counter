@@ -812,9 +812,17 @@ let batchProcessing=false;
 let plateReviewState=null; // {fileIndex,wellIndex,rect:{x0,y0,cw,ch},wellLabel}
 let wellAdjustState=null; // {fileIndex,selectedWell,dragMode,startX,startY,startCx,startCy,startR}
 let batchMainPreview=null; // {fileIndex,wells,results}
+let platePreviewRefreshTimer=null;
+let platePreviewRefreshQueued=false;
+let platePreviewRefreshInFlight=false;
+let platePreviewRefreshReason='';
 
 function updateDetectButtonState(){
   $('detectBtn').disabled=!(!!origPx&&!batchProcessing);
+}
+
+function canAutoRefreshPlatePreview(){
+  return activeTab==='batch'&&batchImageMode==='plate'&&!plateReviewState&&!wellAdjustState&&!!batchMainPreview&&!!batchFiles[0]&&!!batchFiles[0].result&&!batchProcessing;
 }
 
 const C=document.getElementById('mainCanvas'), X=C.getContext('2d',{willReadFrequently:true});
@@ -1264,7 +1272,7 @@ function computeLocalColonyResponse(grayData,labels,compLabel,w,h,mX,mY,bw,bh,in
   return {response,mean:sum/count,std:Math.sqrt(Math.max(0,sum2/count-(sum/count)*(sum/count))),maxResp};
 }
 
-function collectIntensitySeeds(responseStats,labels,compLabel,w,h,mX,mY,bw,bh,minPD,maxSeeds,dist,minDist,stdFactor=1.55,peakFactor=0.62){
+function collectIntensitySeeds(responseStats,labels,compLabel,w,h,mX,mY,bw,bh,minPD,maxSeeds,dist,minDist,maxDist,stdFactor=1.55,peakFactor=0.62){
   if(!responseStats)return [];
   const {response,mean,std,maxResp}=responseStats;
   const thr=Math.max(mean+std*stdFactor,maxResp*peakFactor,5.5);
@@ -1274,7 +1282,10 @@ function collectIntensitySeeds(responseStats,labels,compLabel,w,h,mX,mY,bw,bh,mi
     if(labels[gi]!==compLabel||rv<thr||(dist&&dist[pi]<minDist))continue;
     let isMax=true;
     for(let dy=-1;dy<=1&&isMax;dy++)for(let dx=-1;dx<=1&&isMax;dx++)if((dy||dx)&&response[(y+dy)*bw+x+dx]>rv)isMax=false;
-    if(isMax)cands.push({gx,gy,lx:x,ly:y,d:rv,kind:'intensity'});
+    if(isMax){
+      const distRatio=dist&&maxDist>0?dist[pi]/maxDist:0;
+      cands.push({gx,gy,lx:x,ly:y,d:rv*(0.75+distRatio*0.5),kind:'intensity'});
+    }
   }
   cands.sort((a,b)=>b.d-a.d);
   const seeds=[];
@@ -1354,15 +1365,46 @@ function getSplitSensitivityProfile(splitSens){
     sens,
     bias,
     intensityEligibilityFactor:Math.max(3.8,5.0-bias*1.2),
-    maxSeedsFactor:Math.max(1.5,1.9-bias*0.35),
-    seedMergeFactor:Math.max(0.5,0.68-bias*0.1),
+    denseIntensityEligibilityFactor:Math.max(6.5,9.5-bias*2.0),
+    maxSeedsFactor:Math.max(1.2,1.75-bias*0.45),
+    maxSeedCap:Math.max(8,Math.min(12,Math.round(9+bias*2))),
+    seedMergeFactor:Math.max(0.46,0.66-bias*0.08),
     intensityPeakFactor:Math.max(0.6,0.82-bias*0.14),
-    intensityValleyFactor:Math.max(0.26,0.38-bias*0.07),
+    intensityValleyFactor:Math.max(0.3,0.42-bias*0.06),
     intensityThresholdStd:Math.max(0.8,1.55-bias*0.35),
     intensityThresholdPeak:Math.max(0.48,0.62-bias*0.08),
-    fragmentMergeFactor:Math.max(0.35,0.6-bias*0.18),
-    lowSeedAllowance:bias>0.2?3:2
+    fragmentMergeFactor:Math.max(0.36,0.58-bias*0.16),
+    minSeedInteriorRatio:Math.max(0.22,0.34-bias*0.04),
+    minSeedEdgeGap:Math.max(0.04,0.07-bias*0.01),
+    lowSeedAllowance:bias>0.15?3:2
   };
+}
+
+function pruneWatershedSeeds(seeds,dist,bw,bh,maxD,minPD,maxSeeds,splitCfg){
+  if(!seeds||!seeds.length)return [];
+  const edgeNorm=Math.max(1,Math.min(bw,bh));
+  const enriched=seeds.map(s=>{
+    const idx=s.ly*bw+s.lx;
+    const dVal=dist&&idx>=0&&idx<dist.length?dist[idx]:0;
+    const distRatio=maxD>0?dVal/maxD:0;
+    const edgeGap=Math.min(s.lx,s.ly,bw-1-s.lx,bh-1-s.ly)/edgeNorm;
+    const score=(s.d||0)*(0.72+distRatio*0.55+edgeGap*0.18);
+    return {...s,dVal,distRatio,edgeGap,score};
+  }).sort((a,b)=>b.score-a.score);
+  let filtered=enriched.filter(s=>s.distRatio>=splitCfg.minSeedInteriorRatio&&s.edgeGap>=splitCfg.minSeedEdgeGap);
+  if(filtered.length<=1)filtered=enriched.filter(s=>s.distRatio>=splitCfg.minSeedInteriorRatio*0.82);
+  if(filtered.length<=1)filtered=enriched.slice(0,Math.min(maxSeeds||enriched.length,enriched.length));
+  const out=[];
+  const keepDist=Math.max(3,minPD);
+  for(const c of filtered){
+    let ok=true;
+    for(const s of out)if(Math.hypot(c.gx-s.gx,c.gy-s.gy)<keepDist){ok=false;break}
+    if(ok){
+      out.push(c);
+      if(maxSeeds&&out.length>=maxSeeds)break;
+    }
+  }
+  return out;
 }
 
 
@@ -1398,12 +1440,13 @@ function watershedSplit(comp,mask,w,h,hFrac,peakDistFrac,minSz,labels,compLabel,
   const splitCfg=getSplitSensitivityProfile(splitSens);
   const wsTuned=tuneWatershedParams(comp.pixels,minSz,hFrac,peakDistFrac);
   let seeds=collectDistanceSeeds(dist,bw,bh,mX,mY,maxD*wsTuned.hFrac,Math.sqrt(comp.pixels/Math.PI)*wsTuned.peakDistFrac);
-  const maxSeeds=Math.max(2,Math.min(8,Math.round(comp.pixels/Math.max(minSz*splitCfg.maxSeedsFactor,1))));
-  if(responseStats&&comp.pixels>minSz*splitCfg.intensityEligibilityFactor&&seeds.length<=splitCfg.lowSeedAllowance){
+  const maxSeeds=Math.max(2,Math.min(splitCfg.maxSeedCap,Math.round(comp.pixels/Math.max(minSz*splitCfg.maxSeedsFactor,1))));
+  const denseComp=comp.pixels>minSz*splitCfg.denseIntensityEligibilityFactor;
+  if(responseStats&&comp.pixels>minSz*splitCfg.intensityEligibilityFactor&&(seeds.length<=splitCfg.lowSeedAllowance||denseComp)){
     const intensitySeeds=collectIntensitySeeds(
       responseStats,labels,compLabel,w,h,mX,mY,bw,bh,
       Math.max(4,Math.sqrt(comp.pixels/Math.PI)*wsTuned.peakDistFrac*splitCfg.intensityPeakFactor),
-      maxSeeds,dist,maxD*splitCfg.intensityValleyFactor,splitCfg.intensityThresholdStd,splitCfg.intensityThresholdPeak
+      maxSeeds,dist,maxD*splitCfg.intensityValleyFactor,maxD,splitCfg.intensityThresholdStd,splitCfg.intensityThresholdPeak
     );
     if(intensitySeeds.length>1){
       seeds=mergeSeedSets(seeds,intensitySeeds,Math.max(4,Math.sqrt(comp.pixels/Math.PI)*wsTuned.peakDistFrac*splitCfg.seedMergeFactor),maxSeeds);
@@ -1412,6 +1455,7 @@ function watershedSplit(comp,mask,w,h,hFrac,peakDistFrac,minSz,labels,compLabel,
   if(seeds.length<=1&&comp.pixels>minSz*4){
     seeds=collectDistanceSeeds(dist,bw,bh,mX,mY,maxD*Math.max(0.06,wsTuned.hFrac*0.75),Math.sqrt(comp.pixels/Math.PI)*Math.max(0.07,wsTuned.peakDistFrac*0.82));
   }
+  seeds=pruneWatershedSeeds(seeds,dist,bw,bh,maxD,Math.sqrt(comp.pixels/Math.PI)*Math.max(0.07,wsTuned.peakDistFrac*0.72),maxSeeds,splitCfg);
   if(seeds.length<=1)return [comp];
   const floodScore=new Float32Array(bw*bh);
   const respNorm=responseStats&&responseStats.maxResp>0?responseStats.maxResp:0;
@@ -1479,8 +1523,9 @@ function watershedSplit(comp,mask,w,h,hFrac,peakDistFrac,minSz,labels,compLabel,
 // =================================================================
 //  MAIN DETECTION
 // =================================================================
-async function rerunCurrentPlatePreviewDetection(){
+async function rerunCurrentPlatePreviewDetection(opts={}){
   if(!batchFiles.length||!batchFiles[0]||!batchFiles[0].img||!batchWellTemplate)return;
+  const silent=!!opts.silent;
   const f=batchFiles[0];
   const settings=getDetectionSettings();
   const overlay=$('procOverlay');
@@ -1489,11 +1534,11 @@ async function rerunCurrentPlatePreviewDetection(){
   $('batchRunBtn').disabled=true;
   $('detectWellsBtn').disabled=true;
   $('adjustWellsBtn').disabled=true;
-  setBatchProgress('Reprocessing current plate preview…',0,true);
+  setBatchProgress(silent?'Updating plate preview…':'Reprocessing current plate preview…',0,true);
   try{
     const result=await processPlateImageAsync(f,settings,cloneWells(batchWellTemplate),prog=>{
       const ratio=prog.total?prog.done/prog.total:0;
-      setBatchProgress('Reprocessing '+prog.label+'…',ratio,true);
+      setBatchProgress((silent?'Updating ':'Reprocessing ')+prog.label+'…',ratio,true);
     });
     f.result=result;
     renderWellGrid(batchWellTemplate,f.result.wells,0);
@@ -1501,19 +1546,46 @@ async function rerunCurrentPlatePreviewDetection(){
     showWellPreview(f.img,f.w,f.h,batchWellTemplate,f.result.wells,0);
     renderBatchResults();
     updateBatchUI();
-    toast('Plate preview updated with current settings');
+    if(!silent)toast('Plate preview updated with current settings');
   }catch(err){
     toast('Plate reprocessing failed: '+err.message);
   }finally{
-    clearBatchProgress('Plate preview updated');
+    clearBatchProgress(silent?'Preview updated':'Plate preview updated');
     overlay.classList.remove('active');
     updateBatchUI();
     updateDetectButtonState();
   }
 }
+
+function flushQueuedPlatePreviewRefresh(){
+  if(!canAutoRefreshPlatePreview()){platePreviewRefreshQueued=false;return;}
+  if(platePreviewRefreshInFlight){platePreviewRefreshQueued=true;return;}
+  platePreviewRefreshInFlight=true;
+  platePreviewRefreshQueued=false;
+  rerunCurrentPlatePreviewDetection({silent:true,reason:platePreviewRefreshReason||'settings change'})
+    .finally(()=>{
+      platePreviewRefreshInFlight=false;
+      if(platePreviewRefreshQueued){
+        platePreviewRefreshQueued=false;
+        flushQueuedPlatePreviewRefresh();
+      }
+    });
+}
+
+function queuePlatePreviewRefresh(reason='settings change'){
+  if(!canAutoRefreshPlatePreview())return;
+  platePreviewRefreshReason=reason;
+  platePreviewRefreshQueued=true;
+  if(platePreviewRefreshTimer)clearTimeout(platePreviewRefreshTimer);
+  platePreviewRefreshTimer=setTimeout(()=>{
+    platePreviewRefreshTimer=null;
+    flushQueuedPlatePreviewRefresh();
+  },280);
+}
+
 function runDetection(){
   if(activeTab==='batch'&&batchImageMode==='plate'&&batchMainPreview&&!plateReviewState&&batchFiles[0]&&batchFiles[0].result){
-    rerunCurrentPlatePreviewDetection();
+    rerunCurrentPlatePreviewDetection({silent:false,reason:'auto-detect'});
     return;
   }
   if(!origPx)return;
@@ -2083,8 +2155,8 @@ function applyPreset(key){
   const keys=Object.keys(PRESETS);
   const idx=keys.indexOf(key);
   if(idx>=0&&btns[idx])btns[idx].classList.add('active-preset');
-  // Show toast
-  toast('Preset "'+p.name+'" applied. Press Auto-Detect to run.');
+  queuePlatePreviewRefresh('preset applied');
+  toast(canAutoRefreshPlatePreview()?'Preset "'+p.name+'" applied. Plate preview updating…':'Preset "'+p.name+'" applied. Press Auto-Detect to run.');
 }
 
 function setOverlay(m){overlayMode=m;['tbOrig','tbGray','tbMask','tbAccRej'].forEach(id=>{$(id).classList.toggle('active',id==='tb'+{original:'Orig',gray:'Gray',mask:'Mask',accrej:'AccRej'}[m])});render()}
@@ -2106,13 +2178,13 @@ function applyZ(){C.style.width=(imgW*zoomScale)+'px';C.style.height=(imgH*zoomS
 //  SLIDERS
 // =================================================================
 for(const[s,v]of[['blurR','blurRV'],['threshVal','threshValV'],['minSz','minSzV'],['maxSz','maxSzV'],['edgeMargin','edgeMarginV'],['adaptWin','adaptWinV'],['adaptOff','adaptOffV']])
-  $(s).addEventListener('input',e=>{$(v).textContent=e.target.value});
-$('minCirc').addEventListener('input',e=>{$('minCircV').textContent=(parseInt(e.target.value)/100).toFixed(2)});
-$('minSol').addEventListener('input',e=>{$('minSolV').textContent=(parseInt(e.target.value)/100).toFixed(2)});
-$('maxEcc').addEventListener('input',e=>{$('maxEccV').textContent=(parseInt(e.target.value)/100).toFixed(2)});
-$('wsH').addEventListener('input',e=>{$('wsHV').textContent=(parseInt(e.target.value)/100).toFixed(2)});
-$('wsPD').addEventListener('input',e=>{$('wsPDV').textContent=(parseInt(e.target.value)/100).toFixed(2)});
-$('splitSens').addEventListener('input',e=>{$('splitSensV').textContent=e.target.value});
+  $(s).addEventListener('input',e=>{$(v).textContent=e.target.value;queuePlatePreviewRefresh('parameter change')});
+$('minCirc').addEventListener('input',e=>{$('minCircV').textContent=(parseInt(e.target.value)/100).toFixed(2);queuePlatePreviewRefresh('parameter change')});
+$('minSol').addEventListener('input',e=>{$('minSolV').textContent=(parseInt(e.target.value)/100).toFixed(2);queuePlatePreviewRefresh('parameter change')});
+$('maxEcc').addEventListener('input',e=>{$('maxEccV').textContent=(parseInt(e.target.value)/100).toFixed(2);queuePlatePreviewRefresh('parameter change')});
+$('wsH').addEventListener('input',e=>{$('wsHV').textContent=(parseInt(e.target.value)/100).toFixed(2);queuePlatePreviewRefresh('parameter change')});
+$('wsPD').addEventListener('input',e=>{$('wsPDV').textContent=(parseInt(e.target.value)/100).toFixed(2);queuePlatePreviewRefresh('parameter change')});
+$('splitSens').addEventListener('input',e=>{$('splitSensV').textContent=e.target.value;queuePlatePreviewRefresh('parameter change')});
 
 // Threshold method switch
 $('threshMethod').addEventListener('change',e=>{
@@ -2123,9 +2195,13 @@ $('threshMethod').addEventListener('change',e=>{
   $('adaptOffLabel').textContent=v==='adaptive'?'Adaptive Offset':'Offset (C)';
   $('niblackKGroup').style.display=(v==='niblack'||v==='sauvola')?'block':'none';
   $('sauvolaRGroup').style.display=v==='sauvola'?'block':'none';
+  queuePlatePreviewRefresh('threshold method change');
 });
-$('niblackK').addEventListener('input',e=>{$('niblackKV').textContent=(parseInt(e.target.value)/100).toFixed(2)});
-$('sauvolaR').addEventListener('input',e=>{$('sauvolaRV').textContent=e.target.value});
+$('niblackK').addEventListener('input',e=>{$('niblackKV').textContent=(parseInt(e.target.value)/100).toFixed(2);queuePlatePreviewRefresh('parameter change')});
+$('sauvolaR').addEventListener('input',e=>{$('sauvolaRV').textContent=e.target.value;queuePlatePreviewRefresh('parameter change')});
+for(const id of ['invertChk','bgSubChk','wsChk','borderRej']){
+  $(id).addEventListener('change',()=>queuePlatePreviewRefresh('parameter change'));
+}
 
 // =================================================================
 //  PIPELINE STEP INDICATORS
@@ -2271,10 +2347,11 @@ $('presetFileIn').addEventListener('change',e=>{
       if(p.borderReject!=null)$('borderRej').checked=p.borderReject;
       if(p.adaptiveWindowSize){$('adaptWin').value=p.adaptiveWindowSize;$('adaptWinV').textContent=p.adaptiveWindowSize}
       if(p.adaptiveOffset){$('adaptOff').value=p.adaptiveOffset;$('adaptOffV').textContent=p.adaptiveOffset}
-      if(p.clusterSplitSensitivity!=null){$('splitSens').value=p.clusterSplitSensitivity;$('splitSensV').textContent=p.clusterSplitSensitivity}
-      if(p.edgeMarginPct){$('edgeMargin').value=p.edgeMarginPct;$('edgeMarginV').textContent=p.edgeMarginPct}
-      $('threshMethod').dispatchEvent(new Event('change'));
-      toast('Preset loaded');
+	      if(p.clusterSplitSensitivity!=null){$('splitSens').value=p.clusterSplitSensitivity;$('splitSensV').textContent=p.clusterSplitSensitivity}
+	      if(p.edgeMarginPct){$('edgeMargin').value=p.edgeMarginPct;$('edgeMarginV').textContent=p.edgeMarginPct}
+	      $('threshMethod').dispatchEvent(new Event('change'));
+	      queuePlatePreviewRefresh('preset loaded');
+	      toast(canAutoRefreshPlatePreview()?'Preset loaded. Plate preview updating…':'Preset loaded');
     }catch(err){toast('Invalid preset file')}
   };
   r.readAsText(e.target.files[0]);
@@ -4677,12 +4754,13 @@ function watershedSplitBatch(comp,mask,w,h,hFrac,peakDistFrac,minSz,labels,compL
   const splitCfg=getSplitSensitivityProfile(splitSens);
   const wsTuned=tuneWatershedParams(comp.pixels,minSz,hFrac,peakDistFrac);
   let seeds=collectDistanceSeeds(dist,bw,bh,mX,mY,maxD*wsTuned.hFrac,Math.sqrt(comp.pixels/Math.PI)*wsTuned.peakDistFrac);
-  const maxSeeds=Math.max(2,Math.min(8,Math.round(comp.pixels/Math.max(minSz*splitCfg.maxSeedsFactor,1))));
-  if(responseStats&&comp.pixels>minSz*splitCfg.intensityEligibilityFactor&&seeds.length<=splitCfg.lowSeedAllowance){
+  const maxSeeds=Math.max(2,Math.min(splitCfg.maxSeedCap,Math.round(comp.pixels/Math.max(minSz*splitCfg.maxSeedsFactor,1))));
+  const denseComp=comp.pixels>minSz*splitCfg.denseIntensityEligibilityFactor;
+  if(responseStats&&comp.pixels>minSz*splitCfg.intensityEligibilityFactor&&(seeds.length<=splitCfg.lowSeedAllowance||denseComp)){
     const intensitySeeds=collectIntensitySeeds(
       responseStats,labels,compLabel,w,h,mX,mY,bw,bh,
       Math.max(4,Math.sqrt(comp.pixels/Math.PI)*wsTuned.peakDistFrac*splitCfg.intensityPeakFactor),
-      maxSeeds,dist,maxD*splitCfg.intensityValleyFactor,splitCfg.intensityThresholdStd,splitCfg.intensityThresholdPeak
+      maxSeeds,dist,maxD*splitCfg.intensityValleyFactor,maxD,splitCfg.intensityThresholdStd,splitCfg.intensityThresholdPeak
     );
     if(intensitySeeds.length>1){
       seeds=mergeSeedSets(seeds,intensitySeeds,Math.max(4,Math.sqrt(comp.pixels/Math.PI)*wsTuned.peakDistFrac*splitCfg.seedMergeFactor),maxSeeds);
@@ -4691,6 +4769,7 @@ function watershedSplitBatch(comp,mask,w,h,hFrac,peakDistFrac,minSz,labels,compL
   if(seeds.length<=1&&comp.pixels>minSz*4){
     seeds=collectDistanceSeeds(dist,bw,bh,mX,mY,maxD*Math.max(0.06,wsTuned.hFrac*0.75),Math.sqrt(comp.pixels/Math.PI)*Math.max(0.07,wsTuned.peakDistFrac*0.82));
   }
+  seeds=pruneWatershedSeeds(seeds,dist,bw,bh,maxD,Math.sqrt(comp.pixels/Math.PI)*Math.max(0.07,wsTuned.peakDistFrac*0.72),maxSeeds,splitCfg);
   if(seeds.length<=1)return [comp];
   const floodScore=new Float32Array(bw*bh);
   const respNorm=responseStats&&responseStats.maxResp>0?responseStats.maxResp:0;
